@@ -1,0 +1,22 @@
+name: Update prayer times
+on:
+  schedule:
+    - cron: "17 3 1,15 * *"     # 03:17 UTC on the 1st and 15th
+  workflow_dispatch: {}          # "Run workflow" button
+permissions:
+  contents: write
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: node scripts/update-times.mjs
+      - name: Commit if changed
+        run: |
+          git config user.name "timetable-bot"
+          git config user.email "timetable-bot@users.noreply.github.com"
+          git add data/times.json
+          git diff --cached --quiet || git commit -m "Update prayer times from IslamicFinder"
+          git push

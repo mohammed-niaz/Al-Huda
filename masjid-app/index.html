@@ -1,0 +1,877 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!--BODY-START-->
+<title>Masjid Košice Salah</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#0a1f22">
+<meta name="description" content="Adhan and iqamah times, live iqamah countdown and daily Qur'an reminder for Masjid Košice.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Amiri:wght@400;700&family=Manrope:wght@300;400;500;600;700&family=Reem+Kufi:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: a masjid noticeboard at night. Countdown hero + timetable on the left,
+   a live iqamah clock, the day's ayah and alert switch on the right. Stacks on phones. */
+:root {
+  --ground: #0a1f22;       /* deep tile green */
+  --ground-2: #0f2b2e;
+  --panel: #12322f;
+  --line: rgba(214, 167, 86, 0.22);
+  --brass: #d9aa58;
+  --brass-hi: #f1cf85;
+  --ivory: #f1e9d6;
+  --muted: #a3b8b0;
+  --dim: #6f8a83;
+  --open: #63d394;
+  --closed: #e7766a;
+  --font-display: "Reem Kufi", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Manrope", "Segoe UI", system-ui, sans-serif;
+  --font-quran: "Amiri Quran", "Amiri", "Traditional Arabic", "Noto Naskh Arabic", serif;
+  --r: 18px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ivory);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 18px 40px;
+  position: relative;
+  overflow-x: hidden;
+}
+/* 8-point star lattice, the pattern of a masjid ceiling */
+body::after {
+  content: "";
+  position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(217,170,88,0.16), transparent 70%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 72 72'%3E%3Cg fill='none' stroke='%23d9aa58' stroke-opacity='0.09' stroke-width='1'%3E%3Crect x='21' y='21' width='30' height='30'/%3E%3Crect x='21' y='21' width='30' height='30' transform='rotate(45 36 36)'/%3E%3Cpath d='M0 36h15M57 36h15M36 0v15M36 57v15'/%3E%3C/g%3E%3C/svg%3E");
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 20px; }
+
+/* ---------- top bar ---------- */
+header.top {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px;
+}
+.brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.brand svg { width: 40px; height: 40px; flex: none; }
+.brand h1 {
+  font-family: var(--font-display); font-weight: 600; font-size: 1.45rem; margin: 0; line-height: 1.1;
+  letter-spacing: 0.01em;
+}
+.brand p { margin: 2px 0 0; color: var(--muted); font-size: 0.85rem; }
+.top-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.dates { text-align: right; font-size: 0.85rem; color: var(--muted); line-height: 1.35; }
+.dates b { color: var(--ivory); font-weight: 600; }
+.status {
+  position: relative; z-index: 1;
+  display: inline-flex; align-items: center; gap: 9px;
+  margin-bottom: 18px; padding: 6px 16px 6px 11px; border-radius: 999px;
+  font-weight: 700; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.status .door { flex: none; overflow: visible; }
+.status.open { color: var(--open); background: linear-gradient(rgba(99,211,148,0.08), rgba(99,211,148,0.08)), #12302d; border-color: rgba(99,211,148,0.35); }
+.status.open .lit { animation: doorglow 2.6s ease-in-out infinite; }
+.status.open .door { filter: drop-shadow(0 0 5px rgba(99,211,148,0.7)); }
+.status.closed { color: var(--closed); background: linear-gradient(rgba(231,118,106,0.06), rgba(231,118,106,0.06)), #12302d; border-color: rgba(231,118,106,0.3); }
+.status.closed .lit { opacity: 0.18; }
+.status small { font-weight: 500; letter-spacing: 0.02em; text-transform: none; opacity: 0.85; }
+@keyframes doorglow { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+@media (prefers-reduced-motion: reduce) { .status.open .lit { animation: none; } }
+
+.announce {
+  border: 1px solid var(--line); background: rgba(217,170,88,0.08); color: var(--brass-hi);
+  padding: 10px 16px; border-radius: 12px; font-weight: 500; text-align: center;
+}
+
+/* ---------- main grid ---------- */
+.grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 20px; align-items: stretch; }
+.grid > * { min-width: 0; }
+@media (max-width: 560px) { .dates { text-align: left; } }
+@media (max-width: 860px) {
+  .grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---------- hero ---------- */
+.hero {
+  position: relative; text-align: center;
+  padding: 34px 20px 30px;
+  border-radius: 28px;
+  background: linear-gradient(180deg, rgba(18,50,47,0.92), rgba(10,31,34,0.92));
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+/* arch silhouette */
+.hero::before {
+  content: ""; position: absolute; left: 50%; top: 14px; transform: translateX(-50%);
+  width: min(380px, 84%); height: calc(100% - 28px);
+  border: 1px solid rgba(217,170,88,0.18); border-bottom: none;
+  border-radius: 999px 999px 0 0 / 260px 260px 0 0;
+  pointer-events: none;
+}
+.eyebrow {
+  font-size: 0.75rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--brass); font-weight: 700;
+}
+.hero .name {
+  font-family: var(--font-display); font-size: clamp(2.6rem, 8vw, 4.2rem); font-weight: 600;
+  line-height: 1; margin: 10px 0 2px; text-wrap: balance;
+}
+.hero .arabic-name { font-family: var(--font-quran); font-size: 1.6rem; color: var(--brass-hi); line-height: 1.2; }
+.ring-box { position: relative; width: min(290px, 78vw); aspect-ratio: 1; max-width: 100%; margin: 18px auto 6px; }
+.ring-box svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.ring-bg { fill: none; stroke: rgba(241,233,214,0.07); stroke-width: 7; }
+.ring-fg { fill: none; stroke: var(--brass); stroke-width: 7; stroke-linecap: round; transition: stroke-dashoffset 1s linear; filter: drop-shadow(0 0 6px rgba(217,170,88,0.5)); }
+.ring-center { position: absolute; inset: 0; display: grid; place-content: center; gap: 4px; }
+.countdown {
+  font-variant-numeric: tabular-nums; font-weight: 300; font-size: clamp(2.6rem, 11vw, 3.6rem);
+  letter-spacing: -0.02em; line-height: 1;
+}
+.ring-center .sub { color: var(--muted); font-size: 0.85rem; }
+.hero-times { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
+.chip {
+  display: inline-flex; gap: 8px; align-items: baseline; padding: 8px 14px; border-radius: 12px;
+  background: rgba(241,233,214,0.05); border: 1px solid rgba(241,233,214,0.08); font-size: 0.9rem;
+}
+.chip span { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; }
+.chip b { font-variant-numeric: tabular-nums; font-size: 1.05rem; }
+.nudge { margin: 16px auto 0; max-width: 34ch; color: var(--muted); font-size: 0.95rem; text-wrap: balance; }
+
+/* ---------- timetable ---------- */
+.card {
+  background: rgba(18,50,47,0.78); border: 1px solid var(--line); border-radius: var(--r); padding: 20px;
+  backdrop-filter: blur(4px);
+}
+.card h2 {
+  margin: 0 0 14px; font-family: var(--font-display); font-weight: 500; font-size: 1.1rem;
+  display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap;
+}
+.card h2 small { font-family: var(--font-body); font-size: 0.75rem; color: var(--dim); font-weight: 500; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th { text-align: left; font-size: 0.7rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim); font-weight: 700; padding: 0 10px 8px; }
+th.t, td.t { text-align: right; }
+td { padding: 13px 10px; border-top: 1px solid rgba(241,233,214,0.06); }
+td.p { font-weight: 600; font-size: 1.02rem; }
+td.p .ar { font-family: var(--font-quran); color: var(--dim); font-weight: 400; margin-left: 8px; font-size: 1.05rem; }
+td.t { font-size: 1.12rem; }
+td.t.iq { color: var(--brass-hi); font-weight: 600; }
+tr.sunrise td { color: var(--dim); font-size: 0.9rem; padding-block: 8px; }
+tr.sunrise td.t { font-size: 0.95rem; }
+tr.done td { opacity: 0.45; }
+tr.next td { background: rgba(217,170,88,0.1); }
+tr.next td:first-child { border-radius: 12px 0 0 12px; box-shadow: inset 3px 0 0 var(--brass); }
+tr.next td:last-child { border-radius: 0 12px 12px 0; }
+tr.live td { background: rgba(217,170,88,0.2); }
+.tag { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 6px; font-size: 0.65rem; letter-spacing: 0.12em; text-transform: uppercase; background: var(--brass); color: var(--ground); font-weight: 700; vertical-align: 2px; }
+.source { margin-top: 12px; font-size: 0.78rem; color: var(--dim); }
+.source a { color: var(--muted); }
+
+/* ---------- iqamah card ---------- */
+body.iqamah-live .hero {
+  border-color: var(--brass);
+  box-shadow: 0 0 0 1px rgba(217,170,88,0.4), 0 18px 60px -20px rgba(217,170,88,0.55);
+  animation: heroglow 2.4s ease-in-out infinite;
+}
+body.iqamah-live .hero .countdown { color: var(--brass-hi); }
+@keyframes heroglow { 50% { box-shadow: 0 0 0 1px rgba(217,170,88,0.7), 0 18px 70px -14px rgba(217,170,88,0.8); } }
+
+/* ---------- verse ---------- */
+.verse .ayah {
+  font-family: var(--font-quran); direction: rtl; text-align: right;
+  font-size: 1.65rem; line-height: 2.05; color: var(--ivory); margin: 4px 0 12px;
+}
+.verse .tr { color: var(--muted); font-size: 0.98rem; line-height: 1.6; margin: 0; }
+.verse .ref { margin-top: 12px; font-size: 0.8rem; color: var(--brass); font-weight: 600; letter-spacing: 0.04em; }
+.verse .credit { font-size: 0.7rem; color: var(--dim); margin-top: 4px; }
+
+/* ---------- alerts ---------- */
+.top-right { position: relative; }
+.bell { position: relative; width: 40px; height: 40px; padding: 0; border-radius: 50%; display: inline-grid; place-items: center; color: var(--brass); }
+.bell-dot { position: absolute; top: 8px; right: 9px; width: 8px; height: 8px; border-radius: 50%; background: var(--open); display: none; }
+.bell.on .bell-dot { display: block; }
+.alert-panel {
+  position: absolute; top: calc(100% + 10px); right: 0; z-index: 20; width: min(320px, calc(100vw - 32px));
+  padding: 18px; border-radius: 16px; background: #0f2a2b; border: 1px solid var(--line);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.45);
+}
+.alert-panel[hidden], .alert-banner[hidden] { display: none; }
+.alert-panel h2 { margin: 0 0 8px; font-size: 1.05rem; }
+.alert-panel p { margin: 0 0 14px; color: var(--muted); font-size: 0.88rem; }
+.alert-banner {
+  display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap;
+  padding: 8px 14px; border-radius: 12px; border: 1px solid var(--line); background: rgba(217,170,88,0.08);
+  color: var(--brass-hi); font-size: 0.9rem; font-weight: 500;
+}
+.alert-banner button { padding: 6px 12px; font-size: 0.82rem; }
+.alert-banner .x { padding: 4px 8px; border: none; background: none; color: var(--muted); }
+.btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+button {
+  font: inherit; cursor: pointer; border-radius: 12px; padding: 11px 16px; font-weight: 600; font-size: 0.92rem;
+  border: 1px solid var(--line); background: rgba(241,233,214,0.05); color: var(--ivory);
+}
+.location .addr { margin: 0 0 14px; color: var(--muted); font-size: 0.9rem; }
+a.btn-link { display: inline-block; padding: 9px 16px; border-radius: 10px; border: 1px solid var(--brass); font-size: 0.9rem; font-weight: 500; text-decoration: none; }
+a.btn-link.primary { background: var(--brass); color: var(--ground); }
+a.btn-link.primary:hover { background: var(--brass-hi); }
+button.primary { background: var(--brass); color: var(--ground); border-color: var(--brass); }
+button.primary:hover { background: var(--brass-hi); }
+button:hover { border-color: var(--brass); }
+button:focus-visible { outline: 2px solid var(--brass-hi); outline-offset: 2px; }
+.state-line { margin-top: 12px; font-size: 0.82rem; color: var(--dim); }
+.state-line.on { color: var(--open); }
+
+/* ---------- single screen ---------- */
+body { padding-block: 12px; }
+.wrap { display: flex; flex-direction: column; gap: 14px; min-height: calc(100dvh - 24px); }
+.grid { flex: 1 1 auto; }
+.dates { margin-left: auto; }
+.dates .sep { display: none; }
+.dates #d-hijri { display: block; }
+.top-right { gap: 6px; flex-wrap: nowrap; }
+.screen-btn { color: var(--muted); }
+.hero { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 22px 20px 20px; }
+.status { margin-bottom: 12px; }
+.hbar { display: none; width: min(260px, 80%); height: 4px; border-radius: 4px; background: rgba(241,233,214,0.08); margin: 10px auto 4px; overflow: hidden; }
+.hbar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--brass), var(--brass-hi)); transition: width 1s linear; }
+.nudge { margin-top: 12px; }
+/* digits scale with the ring itself, so they always sit inside it */
+.ring-box { container-type: size; }
+.ring-box .countdown { font-size: min(15cqw, 15cqh); }
+.ring-box .sub { font-size: max(0.75rem, min(4.2cqw, 4.2cqh)); }
+.tcard { display: flex; flex-direction: column; }
+.tbl-wrap { flex: 1 1 auto; overflow-x: auto; }
+.tbl-wrap table { height: 100%; }
+td { padding: 10px 10px; }
+tr.sunrise td { padding-block: 4px; font-size: 0.82rem; }
+.source { margin-top: 8px; }
+
+.verse-strip {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  padding: 11px 16px; border-radius: 14px; font-weight: 500; background: rgba(18,50,47,0.78);
+}
+.vs-label { flex: none; font-size: 0.68rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--brass); font-weight: 700; }
+.vs-text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+.vs-ar { display: none; font-family: var(--font-quran); font-size: 1.15rem; color: var(--ivory); }
+.verse-strip.show-ar .vs-en { display: none; }
+.verse-strip.show-ar .vs-ar { display: inline; }
+.vs-ref { flex: none; font-size: 0.78rem; color: var(--brass); font-weight: 600; }
+.vs-more { flex: none; font-size: 1.3rem; line-height: 1; color: var(--brass); }
+
+.sheet { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px; background: rgba(4,14,15,0.7); backdrop-filter: blur(3px); }
+.sheet[hidden] { display: none; }
+.sheet .verse { width: min(600px, 100%); max-height: 85dvh; overflow-y: auto; background: #0f2a2b; }
+.sheet .x { padding: 4px 10px; border: none; background: none; color: var(--muted); font-size: 1rem; }
+
+/* wide screens: lock to the viewport height, the ring grows/shrinks to fit */
+@media (min-width: 861px) and (min-height: 620px) {
+  .wrap { height: calc(100dvh - 24px); }
+  .grid { flex: 1 1 0; min-height: 0; }
+  .grid > * { min-height: 0; }
+  .ring-box { flex: 1 1 0; min-height: 130px; width: auto; height: auto; max-width: 100%; margin: 12px auto 6px; }
+  .tcard { overflow: hidden; }
+}
+@media (min-width: 861px) and (max-height: 760px) {
+  .nudge { display: none; }
+  .hero .name { font-size: clamp(2rem, 6vh, 3.2rem); }
+}
+
+/* phones: no ring, big digits + thin bar, compact table */
+@media (max-width: 860px) {
+  body { padding-block: 10px; }
+  .wrap { gap: 10px; }
+  .grid { gap: 10px; }
+  header.top { gap: 4px 10px; flex-wrap: wrap; }
+  .brand svg { width: 30px; height: 30px; }
+  .brand h1 { font-size: 1.15rem; }
+  .brand p { display: none; }
+  .dates { order: 3; width: 100%; margin-left: 0; text-align: left; font-size: 0.78rem; }
+  .dates .sep { display: inline; }
+  .dates #d-hijri { display: inline; }
+  .top-right { margin-left: auto; }
+  .bell { width: 36px; height: 36px; }
+  .hero { padding: 14px 14px 14px; border-radius: 22px; }
+  .hero::before { display: none; }
+  .status { margin-bottom: 8px; padding: 4px 12px 4px 9px; font-size: 0.7rem; }
+  .hero .name { font-size: 2.1rem; margin: 4px 0 0; }
+  .hero .arabic-name { display: none; }
+  .alert-banner { flex-wrap: nowrap; justify-content: flex-start; gap: 8px; padding: 6px 8px 6px 12px; font-size: 0.82rem; }
+  .alert-banner span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .alert-banner button { padding: 5px 10px; }
+  .ring-box { container-type: normal; width: auto; aspect-ratio: auto; margin: 6px auto 0; }
+  .ring-box svg { display: none; }
+  .ring-center { position: static; gap: 0; }
+  .ring-box .countdown { font-size: 2.8rem; }
+  .ring-box .sub { font-size: 0.85rem; }
+  .hbar { display: block; }
+  .hero-times { margin-top: 6px; gap: 8px; }
+  .chip { padding: 5px 11px; font-size: 0.85rem; }
+  .nudge { display: none; }
+  .card { padding: 12px 14px; }
+  .card h2 { margin-bottom: 6px; font-size: 1rem; }
+  .card h2 small, .source { display: none; }
+  th { padding-bottom: 4px; }
+  td { padding: 6px 8px; }
+  tr.sunrise td { padding-block: 2px; }
+  td.p { font-size: 0.95rem; }
+  td.p .ar { font-size: 0.9rem; margin-left: 6px; }
+  .tag { margin-left: 6px; }
+  td.t { font-size: 1rem; }
+  .verse-strip { padding: 9px 12px; gap: 8px; }
+  .vs-ref { display: none; }
+}
+
+/* TV: use the whole screen */
+body.screen .wrap { max-width: none; }
+body.screen .bell:not(.screen-btn), body.screen .verse-strip .vs-more { display: none; }
+body.screen .screen-btn { opacity: 0.35; }
+
+/* toast */
+.toast {
+  position: fixed; left: 50%; transform: translate(-50%, 140%);
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  width: min(440px, calc(100% - 32px));
+  background: var(--brass); color: var(--ground); border-radius: 16px; padding: 14px 18px;
+  font-weight: 600; box-shadow: 0 20px 50px -10px rgba(0,0,0,0.6); transition: transform .35s ease, visibility .35s; z-index: 20;
+  visibility: hidden;
+}
+.toast.show { transform: translate(-50%, 0); visibility: visible; }
+.toast small { display: block; font-weight: 500; opacity: 0.8; }
+
+/* TV / screen mode: bigger everything */
+body.screen { font-size: 18px; }
+body.screen .alert-panel, body.screen .alert-banner { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg viewBox="0 0 40 40" aria-hidden="true">
+        <g fill="none" stroke="#d9aa58" stroke-width="1.6">
+          <rect x="9" y="9" width="22" height="22" rx="1"/>
+          <rect x="9" y="9" width="22" height="22" rx="1" transform="rotate(45 20 20)"/>
+          <circle cx="20" cy="20" r="5"/>
+        </g>
+      </svg>
+      <div>
+        <h1 id="m-name">Masjid</h1>
+        <p id="m-tag"></p>
+      </div>
+    </div>
+    <div class="dates"><b id="d-greg">—</b><span class="sep"> · </span><span id="d-hijri">—</span></div>
+    <div class="top-right">
+      <button class="bell" id="pin" aria-label="Location" aria-haspopup="true" aria-expanded="false">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>
+      </button>
+      <div class="alert-panel location" id="loc-panel" hidden>
+        <h2>Location</h2>
+        <p class="addr" id="loc-addr"></p>
+        <div class="btn-row">
+          <a class="btn-link primary" id="loc-link" target="_blank" rel="noopener">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:-3px;margin-right:6px"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>Get directions
+          </a>
+          <button id="loc-copy">Copy address</button>
+        </div>
+      </div>
+      <button class="bell" id="bell" aria-label="Adhan alerts" aria-haspopup="true" aria-expanded="false">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 22a2.5 2.5 0 0 0 2.4-1.8H9.6A2.5 2.5 0 0 0 12 22zm7-6.5V11a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v4.5L3 17.5V19h18v-1.5z"/></svg>
+        <i class="bell-dot" id="bell-dot"></i>
+      </button>
+      <div class="alert-panel" id="alert-panel" hidden>
+        <h2>Adhan alerts</h2>
+        <p>Get a notification and sound at each adhan, a reminder before it, and a nudge before iqamah.</p>
+        <div class="btn-row">
+          <button class="primary" id="b-alerts">Turn on adhan alerts</button>
+          <button id="b-test">Test alert</button>
+        </div>
+        <div class="state-line" id="alert-state">Alerts are off on this device.</div>
+      </div>
+      <button class="bell screen-btn" id="b-screen" aria-label="Masjid screen mode" title="Masjid screen mode">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="alert-banner" id="alert-banner" hidden>
+    <span>🔔 Get adhan alerts on this device</span>
+    <button class="primary" id="banner-on">Turn on</button>
+    <button class="x" id="banner-x" aria-label="Dismiss">✕</button>
+  </div>
+
+  <div id="announce" class="announce" hidden></div>
+
+  <div class="grid">
+      <section class="hero" aria-live="polite">
+        <div id="status" class="status closed">
+          <svg class="door" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+            <path class="frame" d="M4.5 21.5V10a7.5 7.5 0 0 1 15 0v11.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+            <path class="lit" d="M8 21.5V11a4 4 0 0 1 8 0v10.5z" fill="currentColor"/>
+          </svg>
+          <span id="status-text">Closed</span>
+        </div>
+        <div class="eyebrow" id="h-eyebrow">Next prayer</div>
+        <div class="name" id="h-name">—</div>
+        <div class="arabic-name" id="h-ar"></div>
+        <div class="ring-box">
+          <svg viewBox="0 0 200 200" aria-hidden="true">
+            <circle class="ring-bg" cx="100" cy="100" r="90"/>
+            <circle class="ring-fg" id="ring" cx="100" cy="100" r="90" stroke-dasharray="565.49" stroke-dashoffset="565.49"/>
+          </svg>
+          <div class="ring-center">
+            <div class="countdown" id="h-count">--:--:--</div>
+            <div class="sub" id="h-sub">until adhan</div>
+          </div>
+        </div>
+        <div class="hbar"><i id="hbar"></i></div>
+        <div class="hero-times">
+          <div class="chip"><span>Adhan</span><b id="h-adhan">--:--</b></div>
+          <div class="chip"><span>Iqamah</span><b id="h-iqamah">--:--</b></div>
+        </div>
+        <p class="nudge" id="h-nudge"></p>
+      </section>
+
+      <section class="card tcard">
+        <h2>Today's prayers <small id="t-src">IslamicFinder · Muslim World League</small></h2>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Prayer</th><th class="t">Adhan</th><th class="t">Iqamah</th></tr></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+        <div class="source" id="t-note"></div>
+      </section>
+  </div>
+
+  <button class="verse-strip" id="verse-strip" aria-haspopup="dialog">
+    <span class="vs-label">Reminder</span>
+    <span class="vs-text"><span class="vs-en" id="vs-en"></span><span class="vs-ar" id="vs-ar" lang="ar" dir="rtl"></span></span>
+    <span class="vs-ref" id="vs-ref"></span>
+    <span class="vs-more" aria-hidden="true">›</span>
+  </button>
+</div>
+
+<div class="sheet" id="verse-sheet" role="dialog" aria-modal="true" aria-label="Reminder of the day" hidden>
+  <section class="card verse">
+    <h2>Reminder of the day <button class="x" id="verse-x" aria-label="Close">✕</button></h2>
+    <p class="ayah" id="v-ar" lang="ar"></p>
+    <p class="tr" id="v-en"></p>
+    <div class="ref" id="v-ref"></div>
+    <div class="credit">Translation: Saheeh International</div>
+  </section>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script src="config.js"></script>
+<script src="data/verses.js"></script>
+<script src="adhan.min.js"></script>
+<script>
+(() => {
+  const C = window.MASJID_CONFIG;
+  const TZ = C.timezone;
+  const $ = (id) => document.getElementById(id);
+  const PRAYERS = [
+    { key: "fajr", name: "Fajr", ar: "الفجر" },
+    { key: "dhuhr", name: "Dhuhr", ar: "الظهر" },
+    { key: "asr", name: "Asr", ar: "العصر" },
+    { key: "maghrib", name: "Maghrib", ar: "المغرب" },
+    { key: "isha", name: "Isha", ar: "العشاء" }
+  ];
+  const NUDGES = [
+    "The first row is waiting for you.",
+    "Leave what you are doing. Your Lord is calling.",
+    "Walk to the masjid. Every step counts.",
+    "Prayer in jama'ah — come and stand shoulder to shoulder.",
+    "Make wudu now and arrive before the iqamah."
+  ];
+
+  // ---- test hook: ?t=2026-10-20T15:08 (hosted site only) ----
+  let clockOffset = 0;
+  try {
+    const t = new URLSearchParams(location.search).get("t");
+    if (t) clockOffset = zoned(t.slice(0, 10), t.slice(11, 16)).getTime() - Date.now();
+  } catch (e) {}
+  const now = () => new Date(Date.now() + clockOffset);
+
+  // ---------- time-zone helpers (times are always masjid-local) ----------
+  function parts(d) {
+    const f = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23", weekday: "short" });
+    const o = {}; f.formatToParts(d).forEach((p) => (o[p.type] = p.value)); return o;
+  }
+  function offsetMs(d) {
+    const p = parts(d);
+    return Date.UTC(+p.year, p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - Math.floor(d.getTime() / 1000) * 1000;
+  }
+  function zoned(ymd, hm) {
+    const [y, m, d] = ymd.split("-").map(Number), [h, mi] = hm.split(":").map(Number);
+    let guess = Date.UTC(y, m - 1, d, h, mi);
+    let t = guess - offsetMs(new Date(guess));
+    t = guess - offsetMs(new Date(t));
+    return new Date(t);
+  }
+  const ymdOf = (d) => { const p = parts(d); return `${p.year}-${p.month}-${p.day}`; };
+  const addDays = (ymd, n) => { const d = new Date(ymd + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  const weekday = (ymd) => new Date(ymd + "T12:00:00Z").getUTCDay();
+  const hm = (d) => d ? new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d) : "—";
+  const addMin = (d, m) => new Date(d.getTime() + m * 60000);
+  const pad = (n) => String(n).padStart(2, "0");
+  function fmtDur(ms, withHours) {
+    const s = Math.max(0, Math.ceil(ms / 1000));
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    return withHours || h ? `${pad(h)}:${pad(m)}:${pad(sec)}` : `${pad(m)}:${pad(sec)}`;
+  }
+
+  // ---------- prayer time sources ----------
+  let TABLE = null;
+  async function loadTable() {
+    try {
+      const r = await fetch("data/times.json", { cache: "no-cache" });
+      if (r.ok) TABLE = await r.json();
+    } catch (e) { TABLE = null; }
+  }
+  function calcTimes(ymd) {
+    const A = window.adhan; if (!A) return null;
+    const [y, m, d] = ymd.split("-").map(Number);
+    const params = A.CalculationMethod[C.calculation.method]();
+    params.madhab = C.calculation.madhab === "hanafi" ? A.Madhab.Hanafi : A.Madhab.Shafi;
+    params.adjustments = Object.assign({ fajr: 0, sunrise: 0, dhuhr: 0, asr: 0, maghrib: 0, isha: 0 }, C.calculation.adjustments);
+    const pt = new A.PrayerTimes(new A.Coordinates(C.location.lat, C.location.lng), new Date(y, m - 1, d), params);
+    return { fajr: pt.fajr, sunrise: pt.sunrise, dhuhr: pt.dhuhr, asr: pt.asr, maghrib: pt.maghrib, isha: pt.isha };
+  }
+  const dayCache = {};
+  function day(ymd) {
+    if (dayCache[ymd]) return dayCache[ymd];
+    let raw = null, src = "calc";
+    const row = TABLE && TABLE.days && TABLE.days[ymd];
+    if (row) {
+      src = "islamicfinder";
+      raw = {}; (TABLE.order || ["fajr","sunrise","dhuhr","asr","maghrib","isha"]).forEach((k, i) => (raw[k] = zoned(ymd, row[i])));
+    } else raw = calcTimes(ymd);
+    if (!raw) return null;
+    const friday = weekday(ymd) === 5 && C.jumuah && C.jumuah.enabled;
+    const list = PRAYERS.map((p) => {
+      let adhanT = raw[p.key], iq, name = p.name, ar = p.ar;
+      if (p.key === "dhuhr" && friday) {
+        name = "Jumu'ah"; ar = "الجمعة";
+        adhanT = zoned(ymd, C.jumuah.khutbah);
+        iq = zoned(ymd, C.jumuah.iqamah);
+      } else {
+        const rule = (C.iqamah && C.iqamah[p.key]) || { after: 10 };
+        iq = rule.time ? zoned(ymd, rule.time) : addMin(adhanT, rule.after || 0);
+        if (iq < adhanT) iq = adhanT;
+      }
+      return { key: p.key, name, ar, adhan: adhanT, iqamah: iq, ymd };
+    });
+    return (dayCache[ymd] = { ymd, src, sunrise: raw.sunrise, list, friday });
+  }
+
+  // ---------- state ----------
+  function timeline(n) {
+    const t = ymdOf(n);
+    return [addDays(t, -1), t, addDays(t, 1)].flatMap((d) => (day(d) ? day(d).list : []));
+  }
+  function stateAt(n) {
+    const all = timeline(n);
+    const jam = (C.jamaahMinutes || 10) * 60000;
+    const live = all.find((p) => p.adhan <= n && n < p.iqamah);
+    const inJamaah = all.find((p) => p.iqamah <= n && n < new Date(p.iqamah.getTime() + jam));
+    const next = all.find((p) => p.adhan > n);
+    const prev = [...all].reverse().find((p) => p.adhan <= n);
+    const nextIq = all.find((p) => p.iqamah > n);
+    return { live, inJamaah, next, prev, nextIq };
+  }
+  function openState(n) {
+  const o = C.openStatus || {};
+  if (o.mode === "open") return { open: true, why: "" };
+  if (o.mode === "closed") return { open: false, why: o.closedMessage || "" };
+  const before = o.opensBeforeDhuhr ?? 20, after = o.closesAfterIsha ?? 30;
+  const today = ymdOf(n);
+  const windows = [addDays(today, -1), today, addDays(today, 1)].map((ymd) => {
+    const d = day(ymd); if (!d) return null;
+    const dh = d.list.find((p) => p.key === "dhuhr"), is = d.list.find((p) => p.key === "isha");
+    return { from: addMin(dh.adhan, -before), to: addMin(is.iqamah, after) };
+  }).filter(Boolean);
+  const cur = windows.find((w) => n >= w.from && n < w.to);
+  if (cur) return { open: true, why: `until ${hm(cur.to)}`, until: cur.to };
+  for (const x of o.extraHours || []) {
+    if (!x.days || x.days.includes(weekday(today))) {
+      const from = zoned(today, x.from), to = zoned(today, x.to);
+      if (n >= from && n < to) return { open: true, why: x.label ? `${x.label} · until ${hm(to)}` : `until ${hm(to)}`, until: to };
+    }
+  }
+  const nx = windows.find((w) => w.from > n);
+  return { open: false, why: o.closedMessage || (nx ? `opens ${hm(nx.from)}` : "") };
+}
+
+  // ---------- static content ----------
+  $("m-name").textContent = C.name;
+  $("m-tag").textContent = C.tagline || "";
+  {
+    const q = encodeURIComponent(C.mapQuery || `${C.name}, ${C.address || ""}`);
+    const apple = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent);
+    const url = apple ? `https://maps.apple.com/?q=${q}` : `https://www.google.com/maps/search/?api=1&query=${q}`;
+    $("loc-addr").textContent = C.address || "";
+    $("loc-link").href = url;
+    $("loc-copy").addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(C.address || ""); toast("Address copied", C.address || ""); }
+      catch (e) { toast("Couldn't copy", "Press and hold the address to copy it."); }
+    });
+  }
+  if (C.announcement) { $("announce").textContent = C.announcement; $("announce").hidden = false; }
+
+  function renderDates(n) {
+    $("d-greg").textContent = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(n);
+    try {
+      const h = addMin(n, (C.hijriOffset || 0) * 1440);
+      const HM = ["Muharram","Safar","Rabi al-Awwal","Rabi al-Akhir","Jumada al-Ula","Jumada al-Akhirah","Rajab","Sha'ban","Ramadan","Shawwal","Dhu al-Qa'dah","Dhu al-Hijjah"];
+      const o = {}; new Intl.DateTimeFormat("en-u-ca-islamic-umalqura-nu-latn", { timeZone: TZ, day: "numeric", month: "numeric", year: "numeric" }).formatToParts(h).forEach((x) => (o[x.type] = x.value));
+      $("d-hijri").textContent = `${parseInt(o.day)} ${HM[parseInt(o.month) - 1]} ${parseInt(o.year)} AH`;
+    } catch (e) { $("d-hijri").textContent = ""; }
+  }
+  function renderVerse(n) {
+    const V = window.DAILY_VERSES || []; if (!V.length) return;
+    const ymd = ymdOf(n);
+    const doy = Math.floor((Date.parse(ymd) - Date.parse(ymd.slice(0, 4) + "-01-01")) / 86400000);
+    const v = V[(doy + Number(ymd.slice(0, 4))) % V.length];
+    $("v-ar").textContent = v.arabic;
+    $("v-en").textContent = v.english;
+    $("v-ref").textContent = `Surah ${v.surah} (${v.surahEn}) · ${v.ref}`;
+    $("vs-en").textContent = v.english;
+    $("vs-ar").textContent = v.arabic;
+    $("vs-ref").textContent = `${v.surahEn} ${v.ref}`;
+  }
+  function renderTable(n, st) {
+    const d = day(ymdOf(n)); if (!d) return;
+    const rows = [];
+    d.list.forEach((p, i) => {
+      if (i === 1) rows.push(`<tr class="sunrise"><td>Sunrise <span class="ar" style="font-family:var(--font-quran)">الشروق</span></td><td class="t">${hm(d.sunrise)}</td><td class="t">—</td></tr>`);
+      const isLive = st.live === p || st.inJamaah === p;
+      const isNext = !isLive && st.next === p && !st.live;
+      const done = !isLive && p.iqamah < n && !(st.inJamaah === p);
+      const cls = isLive ? "live" : isNext ? "next" : done ? "done" : "";
+      const tag = isLive ? `<span class="tag">${st.live === p ? "Iqamah soon" : "Now"}</span>` : isNext ? `<span class="tag">Next</span>` : "";
+      rows.push(`<tr class="${cls}"><td class="p">${p.name}<span class="ar">${p.ar}</span>${tag}</td><td class="t">${hm(p.adhan)}</td><td class="t iq">${hm(p.iqamah)}</td></tr>`);
+    });
+    $("tbody").innerHTML = rows.join("");
+    $("t-note").innerHTML = d.src === "islamicfinder"
+      ? `Adhan times from <a href="${TABLE.source}" target="_blank" rel="noopener">IslamicFinder</a> for Košice.${d.friday ? " Friday: Jumu'ah replaces Dhuhr." : ""}`
+      : `Adhan times calculated with IslamicFinder's method (Muslim World League), accurate to about a minute.${d.friday ? " Friday: Jumu'ah replaces Dhuhr." : ""}`;
+  }
+
+  // ---------- live render ----------
+  const RING = 565.49;
+  let lastYmd = "", lastTableKey = "";
+  function tick() {
+    const n = now();
+    const ymd = ymdOf(n);
+    if (ymd !== lastYmd) { lastYmd = ymd; renderDates(n); renderVerse(n); }
+    const st = stateAt(n);
+
+    // hero: iqamah countdown after adhan, "time for salah" during jama'ah, otherwise next adhan
+    const nx = st.next, pv = st.prev;
+    const live = st.live, jam = st.inJamaah;
+    document.body.classList.toggle("iqamah-live", !!(live || jam));
+    if (live) {
+      $("h-eyebrow").textContent = "Adhan called";
+      $("h-name").textContent = live.name;
+      $("h-ar").textContent = live.ar;
+      $("h-count").textContent = fmtDur(live.iqamah - n, true);
+      $("h-sub").textContent = "until iqamah";
+      $("h-adhan").textContent = hm(live.adhan);
+      $("h-iqamah").textContent = hm(live.iqamah);
+      const span = live.iqamah - live.adhan;
+      $("ring").style.strokeDashoffset = (RING * (1 - (span ? Math.min(1, (n - live.adhan) / span) : 1))).toFixed(1);
+      $("h-nudge").textContent = live.name === "Jumu'ah" ? "The khutbah has begun. Come and listen." : "The adhan has been called. Come now, the rows are forming.";
+    } else if (jam) {
+      const jamMs = (C.jamaahMinutes || 10) * 60000;
+      $("h-eyebrow").textContent = jam.name;
+      $("h-name").textContent = "Time for salah";
+      $("h-ar").textContent = "حان وقت الصلاة";
+      $("h-count").textContent = "Now";
+      $("h-sub").textContent = "jama'ah in progress";
+      $("h-adhan").textContent = hm(jam.adhan);
+      $("h-iqamah").textContent = hm(jam.iqamah);
+      $("ring").style.strokeDashoffset = (RING * Math.min(1, (n - jam.iqamah) / jamMs)).toFixed(1);
+      $("h-nudge").textContent = "Join the imam. You can still catch the rak'ah.";
+    } else if (nx) {
+      $("h-eyebrow").textContent = nx.ymd !== ymd ? "Next prayer · tomorrow" : "Next prayer";
+      $("h-name").textContent = nx.name;
+      $("h-ar").textContent = nx.ar;
+      $("h-count").textContent = fmtDur(nx.adhan - n, true);
+      $("h-sub").textContent = nx.name === "Jumu'ah" ? "until khutbah" : "until adhan";
+      $("h-adhan").textContent = hm(nx.adhan);
+      $("h-iqamah").textContent = hm(nx.iqamah);
+      const span = pv ? nx.adhan - pv.adhan : 6 * 3600000;
+      const frac = Math.min(1, Math.max(0, 1 - (nx.adhan - n) / span));
+      $("ring").style.strokeDashoffset = (RING * (1 - frac)).toFixed(1);
+      const mins = (nx.adhan - n) / 60000;
+      $("h-nudge").textContent = mins <= 20 ? "Make wudu now and head to the masjid." : NUDGES[(new Date(ymd).getUTCDate() + PRAYERS.findIndex(p=>p.key===nx.key)) % NUDGES.length];
+    }
+
+    // phone progress bar mirrors the ring
+    $("hbar").style.width = (100 * (1 - parseFloat($("ring").style.strokeDashoffset || RING) / RING)).toFixed(1) + "%";
+
+    // open / closed
+    const os = openState(n);
+    $("status").className = "status " + (os.open ? "open" : "closed");
+    $("status-text").innerHTML = (os.open ? "Masjid open" : "Masjid closed") + (os.why ? ` <small>· ${os.why}</small>` : "");
+
+    // table (re-render only when state changes)
+    const key = ymd + (live && live.key) + (st.inJamaah && st.inJamaah.key) + (nx && nx.key + nx.ymd) + Math.floor(n / 60000);
+    if (key !== lastTableKey) { lastTableKey = key; renderTable(n, st); }
+
+    checkAlerts(n);
+  }
+
+  // ---------- alerts ----------
+  const PREF = "masjid-alerts";
+  let alertsOn = false;
+  try { alertsOn = localStorage.getItem(PREF) === "on"; } catch (e) {}
+  const fired = new Set();
+  let audioCtx = null, swReg = null;
+
+  function chime() {
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      const t0 = audioCtx.currentTime;
+      [659.25, 783.99, 987.77, 783.99].forEach((f, i) => {
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.type = "sine"; o.frequency.value = f;
+        g.gain.setValueAtTime(0, t0 + i * 0.45);
+        g.gain.linearRampToValueAtTime(0.25, t0 + i * 0.45 + 0.05);
+        g.gain.exponentialRampToValueAtTime(0.001, t0 + i * 0.45 + 1.4);
+        o.connect(g).connect(audioCtx.destination); o.start(t0 + i * 0.45); o.stop(t0 + i * 0.45 + 1.5);
+      });
+    } catch (e) {}
+  }
+  function sound(kind) {
+    if (kind === "adhan" && C.notifications.adhanAudio) {
+      const a = new Audio(C.notifications.adhanAudio); a.play().catch(chime);
+    } else chime();
+  }
+  let toastTimer;
+  function toast(title, body) {
+    $("toast").innerHTML = `${title}<small>${body}</small>`;
+    $("toast").classList.add("show");
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => $("toast").classList.remove("show"), 9000);
+  }
+  async function notify(title, body, kind) {
+    toast(title, body);
+    sound(kind);
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    const opts = { body, icon: "icon.svg", badge: "icon.svg", tag: kind + title, renotify: true, vibrate: [300, 150, 300] };
+    try {
+      if (swReg) await swReg.showNotification(title, opts);
+      else new Notification(title, opts);
+    } catch (e) { try { new Notification(title, opts); } catch (_) {} }
+  }
+  function checkAlerts(n) {
+    if (!alertsOn) return;
+    const N = C.notifications || {};
+    const evs = [];
+    for (const p of timeline(n)) {
+      evs.push({ id: "a" + p.ymd + p.key, at: p.adhan, kind: "adhan", title: `${p.name} — adhan`, body: `Iqamah at ${hm(p.iqamah)}. Come to the masjid.` });
+      if (N.reminderBeforeAdhan) evs.push({ id: "r" + p.ymd + p.key, at: addMin(p.adhan, -N.reminderBeforeAdhan), kind: "reminder", title: `${p.name} in ${N.reminderBeforeAdhan} minutes`, body: `Adhan ${hm(p.adhan)} · Iqamah ${hm(p.iqamah)}` });
+      if (N.iqamahAlert) { const lead = Math.min(1, (p.iqamah - p.adhan) / 120000); if (lead > 0 && p.iqamah - p.adhan > 90000) evs.push({ id: "i" + p.ymd + p.key, at: addMin(p.iqamah, -lead), kind: "iqamah", title: `${p.name} — iqamah in 1 minute`, body: "The jama'ah is about to stand." }); }
+    }
+    for (const e of evs) {
+      const d = n - e.at;
+      if (d >= 0 && d < 60000 && !fired.has(e.id)) { fired.add(e.id); notify(e.title, e.body, e.kind); }
+      else if (d >= 60000) fired.add(e.id);
+    }
+  }
+  function renderAlertState() {
+    const perm = "Notification" in window ? Notification.permission : "unsupported";
+    const s = $("alert-state");
+    if (alertsOn && perm === "granted") { s.textContent = "Alerts are on. Keep this page open or installed on your home screen."; s.className = "state-line on"; $("b-alerts").textContent = "Turn off alerts"; }
+    else if (alertsOn) { s.textContent = "Sound and on-screen alerts are on. Notifications are blocked in this browser."; s.className = "state-line on"; $("b-alerts").textContent = "Turn off alerts"; }
+    else { s.textContent = "Alerts are off on this device."; s.className = "state-line"; $("b-alerts").textContent = "Turn on adhan alerts"; }
+    $("bell").classList.toggle("on", alertsOn);
+    let dismissed = false;
+    try { dismissed = localStorage.getItem("masjid-alerts-banner") === "x"; } catch (e) {}
+    $("alert-banner").hidden = alertsOn || dismissed;
+  }
+  // header pop-overs (alerts, location): one open at a time
+  const pops = [[$("bell"), $("alert-panel")], [$("pin"), $("loc-panel")]];
+  function setPanel(target) {
+    pops.forEach(([b, p]) => { const open = p === target; p.hidden = !open; b.setAttribute("aria-expanded", open); });
+  }
+  pops.forEach(([b, p]) => {
+    b.addEventListener("click", (e) => { e.stopPropagation(); setPanel(p.hidden ? p : null); });
+    p.addEventListener("click", (e) => e.stopPropagation());
+  });
+  document.addEventListener("click", () => setPanel(null));
+  // reminder of the day: strip opens the full verse
+  const sheet = $("verse-sheet");
+  $("verse-strip").addEventListener("click", (e) => { e.stopPropagation(); setPanel(null); sheet.hidden = false; $("verse-x").focus(); });
+  $("verse-x").addEventListener("click", () => (sheet.hidden = true));
+  sheet.addEventListener("click", (e) => { if (e.target === sheet) sheet.hidden = true; });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { setPanel(null); sheet.hidden = true; } });
+  // masjid TV: nobody taps, so the strip alternates English and Arabic
+  setInterval(() => {
+    $("verse-strip").classList.toggle("show-ar", document.body.classList.contains("screen") && !$("verse-strip").classList.contains("show-ar"));
+  }, 12000);
+  $("banner-x").addEventListener("click", () => {
+    try { localStorage.setItem("masjid-alerts-banner", "x"); } catch (e) {}
+    $("alert-banner").hidden = true;
+  });
+  $("banner-on").addEventListener("click", () => $("b-alerts").click());
+  $("b-alerts").addEventListener("click", async () => {
+    if (alertsOn) { alertsOn = false; }
+    else {
+      alertsOn = true;
+      chime(); // unlocks audio on this device
+      try { if ("Notification" in window && Notification.permission === "default") await Notification.requestPermission(); } catch (e) {}
+    }
+    try { localStorage.setItem(PREF, alertsOn ? "on" : "off"); } catch (e) {}
+    timeline(now()).forEach((p) => { if (p.adhan <= now()) fired.add("a" + p.ymd + p.key); });
+    renderAlertState();
+  });
+  $("b-test").addEventListener("click", () => {
+    const st = stateAt(now());
+    notify(`${st.next ? st.next.name : "Prayer"} — test alert`, "This is how the adhan alert will look and sound.", "adhan");
+  });
+
+  // screen mode for the masjid TV
+  let wake = null;
+  $("b-screen").addEventListener("click", async () => {
+    document.body.classList.toggle("screen");
+    const on = document.body.classList.contains("screen");
+    try { if (on && document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen(); else if (!on && document.fullscreenElement) await document.exitFullscreen(); } catch (e) {}
+    try { if (on && navigator.wakeLock) wake = await navigator.wakeLock.request("screen"); else if (wake) { wake.release(); wake = null; } } catch (e) {}
+    $("b-screen").setAttribute("aria-label", on ? "Exit screen mode" : "Masjid screen mode");
+    $("b-screen").title = on ? "Exit screen mode" : "Masjid screen mode";
+  });
+
+  // ---------- boot ----------
+  (async () => {
+    if ("serviceWorker" in navigator) {
+      try { swReg = await navigator.serviceWorker.register("sw.js"); } catch (e) { swReg = null; }
+    }
+    await loadTable();
+    renderAlertState();
+    tick();
+    setInterval(tick, 1000);
+    // refresh config/times every 6 hours on always-on screens
+    setInterval(() => location.reload(), 6 * 3600000);
+  })();
+})();
+</script>
+</body>
+</html>
