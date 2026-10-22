@@ -1,6 +1,6 @@
 // Service worker: offline support + notification clicks.
-const CACHE = "masjid-v1";
-const SHELL = ["./", "index.html", "config.js", "adhan.min.js", "data/verses.js", "data/times.json", "icon.svg", "manifest.webmanifest"];
+const CACHE = "masjid-v2";
+const SHELL = ["./", "index.html", "config.js", "adhan.min.js", "data/verses.js", "data/times.json", "icon.svg", "icons/icon-192.png", "manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
