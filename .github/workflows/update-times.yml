@@ -12,7 +12,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
-      - run: node scripts/update-times.mjs
+      - name: Fetch this month's timetable (3 tries)
+        run: |
+          for i in 1 2 3; do
+            node scripts/update-times.mjs && exit 0
+            echo "Attempt $i failed, waiting 45s"; sleep 45
+          done
+          exit 1
       - name: Commit if changed
         run: |
           git config user.name "timetable-bot"
