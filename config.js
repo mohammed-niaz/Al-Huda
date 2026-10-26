@@ -38,8 +38,8 @@ window.MASJID_CONFIG = {
   // Friday: Dhuhr is replaced by Jumu'ah
   jumuah: {
     enabled: true,
-    khutbah: "13:30",                  // khutbah start (shown + used as "adhan")
-    iqamah:  "13:45"
+    khutbah: "12:30",                  // khutbah start (shown + used as "adhan")
+    iqamah:  "12:45"
   },
 
   // How long the "jama'ah in progress" state shows after iqamah
