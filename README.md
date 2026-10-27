@@ -49,20 +49,24 @@ announcement: "Tarawih begins Saturday after Isha",
 
 Save the file on GitHub (pencil icon → Commit). Phones pick up the change on their next refresh; masjid screens reload every 6 hours.
 
-## Hosting on GitHub Pages (free, ~10 minutes)
+## Hosting (Cloudflare Pages)
 
-1. Create a free account at github.com, then **New repository** → name it `masjid-kosice` → Public → Create.
-2. **Add file → Upload files**, drag in everything from this folder, and commit.
-   The `.github` folder is hidden on Mac/Windows. If it didn't upload, choose **Add file → Create new file**,
-   type `.github/workflows/update-times.yml` as the name, and paste that file's contents.
-3. **Settings → Pages** → Source: *Deploy from a branch* → Branch `main`, folder `/ (root)` → Save.
-4. **Settings → Actions → General** → Workflow permissions: *Read and write* → Save.
-5. **Actions → Update prayer times → Run workflow** once to check it works.
-6. After a minute the app is live at `https://<your-username>.github.io/masjid-kosice/`.
+Live at **https://mesita-alhuda.pages.dev**
 
-Optional: add your own domain under **Settings → Pages → Custom domain**.
+- Cloudflare Pages is connected to this repository and republishes the site on every
+  commit to `main`, including the timetable job's commits. Nothing to upload by hand.
+- Project settings: framework preset *None*, build command empty, output directory `/`.
+- The repository can stay **private**; Cloudflare still deploys it.
+- GitHub Pages is not used (it would show the owner's username in the address).
 
-**Quick alternative:** drag the folder onto app.netlify.com/drop for an instant link. You then update `times.json` yourself by running `node scripts/update-times.mjs` and re-uploading.
+### Monthly timetable
+
+`.github/workflows/update-times.yml` runs on the 1st and 15th of each month, copies the month
+from IslamicFinder into `data/times.json` and commits it; Cloudflare then republishes.
+Needs **Settings → Actions → General → Workflow permissions: Read and write**.
+To run it by hand: **Actions → Update prayer times → Run workflow**.
+
+Optional: buy a domain (e.g. `alhuda-kosice.sk`) and add it in Cloudflare under the project's **Custom domains**.
 
 ## Sharing it with the brothers
 
