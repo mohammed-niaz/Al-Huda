@@ -26,23 +26,50 @@ const html = await res.text();
 console.log(`IslamicFinder answered ${res.status}, ${res.headers.get("content-type")}, ${html.length} characters, ${(html.match(/<tr[\s>]/gi) || []).length} table rows`);
 if (!res.ok) throw new Error(`IslamicFinder answered ${res.status}. Start of reply: ${peek(html)}`);
 
-// Month + year from the page header, e.g. "20 October, 2026"
-const hdr = html.match(/(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December),\s+(\d{4})/);
-if (!hdr) throw new Error(`Could not find the date on the page (${html.length} characters). Start of page: ${peek(html)}`);
-const month = ["January","February","March","April","May","June","July","August","September","October","November","December"].indexOf(hdr[2]) + 1;
-const year = +hdr[3];
-
-const days = {};
-for (const row of html.split(/<tr[\s>]/i).slice(1)) {
-  const text = row.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-  const dayM = text.match(/^(\d{2})\s+(Mon|Tue|Wed|Thu|Fri|Sat|Sun)/);
+// --- Read the day rows from the table -------------------------------------
+// Each row looks like: "01 Thu | 20 | Thu | 04:49 AM | 06:32 AM | 12:27 PM | 03:36 PM | 06:18 PM | 07:55 PM | 01:17 AM"
+// (day + weekday, hijri day, weekday, Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha, Qiyam)
+const clean = (t) => t.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ")
+  .replace(/<[^>]+>/g, " ").replace(/&nbsp;|&#160;|&#xa0;/gi, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
+const rows = new Map();   // day number -> { wd, times }
+const samples = [];
+const body = html.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<!--[\s\S]*?-->/g, " ");
+for (const row of body.split(/<tr\b[^>]*>/i).slice(1)) {
+  const text = clean(row);
   const times = text.match(/\d{1,2}:\d{2}\s*[AP]M/gi);
-  if (!dayM || !times || times.length < 6) continue;
-  const ymd = `${year}-${String(month).padStart(2, "0")}-${dayM[1]}`;
-  days[ymd] = times.slice(0, 6).map(to24);
+  if (times && samples.length < 3) samples.push(text.slice(0, 160));
+  const m = text.match(/^(\d{1,2})\s+(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b/i);
+  if (!m || !times || times.length < 6) continue;
+  const day = +m[1];
+  if (day < 1 || day > 31) continue;
+  if (!rows.has(day)) rows.set(day, { wd: m[2].slice(0, 1).toUpperCase() + m[2].slice(1, 3).toLowerCase(), times: times.slice(0, 6).map(to24) });
 }
-const n = Object.keys(days).length;
-if (n < 28) throw new Error(`Only found ${n} days (needed 28+). Page layout may have changed; times.json left untouched. Sample: ${peek(html.split(/<tr[\s>]/i).slice(2, 4).join(" "))}`);
+
+// --- Work out which month the table is for -----------------------------------
+// Don't rely on a date line in the page. Try this month, last month and next month (Košice time)
+// and take the one where the number of days AND every weekday label match the calendar.
+const today = process.env.TODAY ? new Date(process.env.TODAY) : new Date();
+const tp = {}; new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Bratislava", year: "numeric", month: "2-digit" })
+  .formatToParts(today).forEach((x) => (tp[x.type] = x.value));
+const WD = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const daysIn = (y, m) => new Date(Date.UTC(y, m, 0)).getUTCDate();
+const candidates = [0, -1, 1].map((d) => {
+  let y = +tp.year, m = +tp.month + d;
+  if (m < 1) { m = 12; y--; } if (m > 12) { m = 1; y++; }
+  return { y, m };
+});
+const pick = candidates.find(({ y, m }) => rows.size === daysIn(y, m) &&
+  [...rows].every(([d, r]) => WD[new Date(Date.UTC(y, m - 1, d)).getUTCDay()] === r.wd));
+if (!pick) {
+  throw new Error(`Found ${rows.size} day rows but they do not match this, last or next month ` +
+    `(${candidates.map((c) => `${c.y}-${String(c.m).padStart(2, "0")}`).join(", ")}). ` +
+    `Weekdays seen: ${[...rows].slice(0, 4).map(([d, r]) => d + " " + r.wd).join(", ")}. Sample rows: ${samples.join(" || ")}`);
+}
+const { y: year, m: month } = pick;
+const monthName = new Date(Date.UTC(year, month - 1, 1)).toLocaleString("en-GB", { month: "long", timeZone: "UTC" });
+const days = {};
+for (const [d, r] of rows) days[`${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`] = r.times;
+const n = rows.size;
 
 let data = { days: {} };
 try { data = JSON.parse(await readFile(FILE, "utf8")); } catch {}
@@ -57,4 +84,4 @@ data = {
   days: { ...(data.days || {}), ...days }
 };
 await writeFile(FILE, JSON.stringify(data, null, 1) + "\n");
-console.log(`Saved ${n} days for ${hdr[2]} ${year}.`);
+console.log(`Saved ${n} days for ${monthName} ${year}.`);
