@@ -3,6 +3,13 @@
 // The GitHub Action in .github/workflows runs it on the 1st and 15th of each month.
 import { readFile, writeFile } from "node:fs/promises";
 
+// Show the real reason in GitHub's red error box (the "annotations" at the top of a failed run)
+const fail = (msg) => { console.log("::error title=Timetable update failed::" + String(msg).replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A")); process.exit(1); };
+process.on("uncaughtException", (e) => fail(e && e.message ? e.message : e));
+process.on("unhandledRejection", (e) => fail(e && e.message ? e.message : e));
+const peek = (t) => String(t).replace(/\s+/g, " ").slice(0, 220);
+
+
 const URL = "https://www.islamicfinder.org/world/slovak-republic/46626508/kosice-prayer-times/";
 const FILE = new globalThis.URL("../data/times.json", import.meta.url);
 const ORDER = ["fajr", "sunrise", "dhuhr", "asr", "maghrib", "isha"];
@@ -15,12 +22,13 @@ const to24 = (t) => {
 };
 
 const res = await fetch(URL, { headers: { "User-Agent": "MasjidKosiceTimetable/1.0 (monthly update)" } });
-if (!res.ok) throw new Error(`IslamicFinder answered ${res.status}`);
 const html = await res.text();
+console.log(`IslamicFinder answered ${res.status}, ${res.headers.get("content-type")}, ${html.length} characters, ${(html.match(/<tr[\s>]/gi) || []).length} table rows`);
+if (!res.ok) throw new Error(`IslamicFinder answered ${res.status}. Start of reply: ${peek(html)}`);
 
 // Month + year from the page header, e.g. "20 October, 2026"
 const hdr = html.match(/(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December),\s+(\d{4})/);
-if (!hdr) throw new Error("Could not find the date on the page");
+if (!hdr) throw new Error(`Could not find the date on the page (${html.length} characters). Start of page: ${peek(html)}`);
 const month = ["January","February","March","April","May","June","July","August","September","October","November","December"].indexOf(hdr[2]) + 1;
 const year = +hdr[3];
 
@@ -34,7 +42,7 @@ for (const row of html.split(/<tr[\s>]/i).slice(1)) {
   days[ymd] = times.slice(0, 6).map(to24);
 }
 const n = Object.keys(days).length;
-if (n < 28) throw new Error(`Only found ${n} days — page layout may have changed; times.json left untouched`);
+if (n < 28) throw new Error(`Only found ${n} days (needed 28+). Page layout may have changed; times.json left untouched. Sample: ${peek(html.split(/<tr[\s>]/i).slice(2, 4).join(" "))}`);
 
 let data = { days: {} };
 try { data = JSON.parse(await readFile(FILE, "utf8")); } catch {}
