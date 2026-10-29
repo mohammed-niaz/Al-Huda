@@ -1,6 +1,6 @@
 // Service worker: offline support, and notifications that arrive while the app is closed.
-const CACHE = "masjid-v4";
-const SHELL = ["./", "index.html", "config.js", "adhan.min.js", "data/verses.js", "data/times.json", "icon.svg", "icons/icon-192.png", "manifest.webmanifest"];
+const CACHE = "masjid-v5";
+const SHELL = ["./", "index.html", "config.js", "adhan.min.js", "data/verses.js", "data/times.json", "icon.svg", "icons/icon-192.png", "manifest.webmanifest", "lib/install-gate.js"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
