@@ -1,0 +1,5 @@
+node_modules/
+.wrangler/
+server/wrangler.toml
+server/.admins.sql
+server/.dev.vars

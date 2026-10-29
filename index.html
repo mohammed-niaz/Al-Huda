@@ -237,6 +237,9 @@ button.primary:hover { background: var(--brass-hi); }
 button:hover { border-color: var(--brass); }
 button:focus-visible { outline: 2px solid var(--brass-hi); outline-offset: 2px; }
 .state-line { margin-top: 12px; font-size: 0.82rem; color: var(--dim); }
+.opts { display: grid; gap: 8px; margin-top: 14px; font-size: 0.86rem; color: var(--ivory); }
+.opts label { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.opts input { width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--brass); flex: none; }
 .state-line.on { color: var(--open); }
 
 /* ---------- single screen ---------- */
@@ -466,11 +469,15 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
         <i class="bell-dot" id="bell-dot"></i>
       </button>
       <div class="alert-panel" id="alert-panel" hidden>
-        <h2>Adhan alerts</h2>
-        <p>Get a notification and sound at each adhan, a reminder before it, and a nudge before iqamah.</p>
+        <h2>Alerts</h2>
+        <p>Notifications with sound, even when the app is closed.</p>
         <div class="btn-row">
-          <button class="primary" id="b-alerts">Turn on adhan alerts</button>
+          <button class="primary" id="b-alerts">Turn on alerts</button>
           <button id="b-test">Test alert</button>
+        </div>
+        <div class="opts" id="alert-opts" hidden>
+          <label><input type="checkbox" id="o-adhan" checked> Adhan, and a reminder 10 minutes before</label>
+          <label><input type="checkbox" id="o-status" checked> Masjid open / closed, reminder of the day and news from the imam</label>
         </div>
         <div class="state-line" id="alert-state">Alerts are off on this device.</div>
       </div>
@@ -481,7 +488,7 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
   </header>
 
   <div class="alert-banner" id="alert-banner" hidden>
-    <span>🔔 Get adhan alerts on this device</span>
+    <span>🔔 Get the adhan and masjid news on this phone</span>
     <button class="primary" id="banner-on">Turn on</button>
     <button class="x" id="banner-x" aria-label="Dismiss">✕</button>
   </div>
@@ -548,7 +555,7 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
     <p class="ayah" id="v-ar" lang="ar"></p>
     <p class="tr" id="v-en"></p>
     <div class="ref" id="v-ref"></div>
-    <div class="credit">Translation: Saheeh International</div>
+    <div class="credit" id="v-credit">Translation: Saheeh International</div>
   </section>
 </div>
 
@@ -672,28 +679,59 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
     const nextIq = all.find((p) => p.iqamah > n);
     return { live, inJamaah, next, prev, nextIq };
   }
-  function openState(n) {
-  const o = C.openStatus || {};
-  if (o.mode === "open") return { open: true, why: "" };
-  if (o.mode === "closed") return { open: false, why: o.closedMessage || "" };
-  const before = o.opensBeforeDhuhr ?? 20, after = o.closesAfterIsha ?? 30;
-  const today = ymdOf(n);
-  const windows = [addDays(today, -1), today, addDays(today, 1)].map((ymd) => {
-    const d = day(ymd); if (!d) return null;
-    const dh = d.list.find((p) => p.key === "dhuhr"), is = d.list.find((p) => p.key === "isha");
-    return { from: o.opensAt ? zoned(ymd, o.opensAt) : addMin(dh.adhan, -before), to: addMin(is.iqamah, after) };
-  }).filter(Boolean);
-  const cur = windows.find((w) => n >= w.from && n < w.to);
-  if (cur) return { open: true, why: `until ${hm(cur.to)}`, until: cur.to };
-  for (const x of o.extraHours || []) {
-    if (!x.days || x.days.includes(weekday(today))) {
-      const from = zoned(today, x.from), to = zoned(today, x.to);
-      if (n >= from && n < to) return { open: true, why: x.label ? `${x.label} · until ${hm(to)}` : `until ${hm(to)}`, until: to };
+  // ---------- open / closed: the timetable in config.js + the imam's change from the server ----------
+  let SERVER = { override: null, announcement: null, reminder: null };
+  function openWindows(n) {
+    const o = C.openStatus || {};
+    const before = o.opensBeforeDhuhr ?? 20, after = o.closesAfterIsha ?? 30;
+    const today = ymdOf(n), out = [];
+    for (const ymd of [addDays(today, -1), today, addDays(today, 1), addDays(today, 2)]) {
+      const d = day(ymd); if (!d) continue;
+      const dh = d.list.find((p) => p.key === "dhuhr"), is = d.list.find((p) => p.key === "isha");
+      out.push({ from: o.opensAt ? zoned(ymd, o.opensAt) : addMin(dh.adhan, -before), to: addMin(is.iqamah, after), label: "" });
+      for (const x of o.extraHours || []) if (!x.days || x.days.includes(weekday(ymd))) out.push({ from: zoned(ymd, x.from), to: zoned(ymd, x.to), label: x.label || "" });
     }
+    return out;
   }
-  const nx = windows.find((w) => w.from > n);
-  return { open: false, why: o.closedMessage || (nx ? `opens at ${hm(nx.from)}` : "") };
-}
+  function scheduleOpen(t) {
+    const mode = (C.openStatus || {}).mode;
+    if (mode === "open") return true;
+    if (mode === "closed") return false;
+    return openWindows(t).some((w) => t >= w.from && t < w.to);
+  }
+  const imamActive = (t) => { const o = SERVER.override; return !!(o && (o.mode === "open" || o.mode === "closed") && (!o.until || t < new Date(o.until))); };
+  const effOpen = (t) => (imamActive(t) ? SERVER.override.mode === "open" : scheduleOpen(t));
+  function openState(n) {
+    const open = effOpen(n), manual = imamActive(n);
+    const wins = openWindows(n);
+    const edges = wins.flatMap((w) => [w.from, w.to]);
+    if (manual && SERVER.override.until) edges.push(new Date(SERVER.override.until));
+    let change = null;
+    for (const e of edges.filter((t) => t > n).sort((a, b) => a - b)) if (effOpen(new Date(e.getTime() + 1000)) !== open) { change = e; break; }
+    const o = C.openStatus || {};
+    const note = manual ? SERVER.override.message : (open ? (wins.find((w) => n >= w.from && n < w.to) || {}).label : "");
+    const time = change ? (open ? `until ${hm(change)}` : `opens at ${hm(change)}`) : "";
+    let why = [note, time].filter(Boolean).join(" · ");
+    if (!open && !manual && o.closedMessage) why = o.closedMessage;
+    return { open, why, until: change, manual };
+  }
+  const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  // ---------- live updates from the imam (server) ----------
+  async function refreshState() {
+    try {
+      const r = await fetch("api/state", { cache: "no-store" });
+      if (!r.ok || !(r.headers.get("content-type") || "").includes("json")) return;
+      const d = await r.json();
+      SERVER = { override: d.override || null, announcement: d.announcement || null, reminder: d.reminder || null };
+      renderAnnouncement(); renderVerse(now()); tick();
+    } catch (e) { /* offline: keep showing the timetable */ }
+  }
+  function renderAnnouncement() {
+    const text = SERVER.announcement ? SERVER.announcement.text : C.announcement;
+    $("announce").textContent = text || "";
+    $("announce").hidden = !text;
+  }
 
   // ---------- static content ----------
   $("m-name").textContent = C.name;
@@ -709,7 +747,7 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
       catch (e) { toast("Couldn't copy", "Press and hold the address to copy it."); }
     });
   }
-  if (C.announcement) { $("announce").textContent = C.announcement; $("announce").hidden = false; }
+  renderAnnouncement();
 
   function renderDates(n) {
     $("d-greg").textContent = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(n);
@@ -721,13 +759,26 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
     } catch (e) { $("d-hijri").textContent = ""; }
   }
   function renderVerse(n) {
+    const R = SERVER.reminder;
+    if (R && (!R.until || n < new Date(R.until))) {
+      // set by the imam on the imam page
+      $("v-ar").textContent = R.arabic || ""; $("v-ar").hidden = !R.arabic;
+      $("v-en").textContent = R.english || "";
+      $("v-ref").textContent = R.source || "";
+      $("v-credit").textContent = R.kind === "verse" ? "Translation: Saheeh International · chosen by the imam" : "Shared by the imam";
+      $("vs-en").textContent = R.english || R.arabic || "";
+      $("vs-ar").textContent = R.arabic || "";
+      $("vs-ref").textContent = R.source || "";
+      return;
+    }
     const V = window.DAILY_VERSES || []; if (!V.length) return;
     const ymd = ymdOf(n);
     const doy = Math.floor((Date.parse(ymd) - Date.parse(ymd.slice(0, 4) + "-01-01")) / 86400000);
     const v = V[(doy + Number(ymd.slice(0, 4))) % V.length];
-    $("v-ar").textContent = v.arabic;
+    $("v-ar").textContent = v.arabic; $("v-ar").hidden = false;
     $("v-en").textContent = v.english;
     $("v-ref").textContent = `Surah ${v.surah} (${v.surahEn}) · ${v.ref}`;
+    $("v-credit").textContent = "Translation: Saheeh International";
     $("vs-en").textContent = v.english;
     $("vs-ar").textContent = v.arabic;
     $("vs-ref").textContent = `${v.surahEn} ${v.ref}`;
@@ -829,7 +880,7 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
     const os = openState(n);
     $("status").className = "status " + (os.open ? "open" : "closed");
     document.querySelector(".hero").classList.toggle("is-open", os.open);
-    $("status-text").innerHTML = (os.open ? "Masjid open" : "Masjid closed") + (os.why ? ` <small>· ${os.why}</small>` : "");
+    $("status-text").innerHTML = (os.open ? "Masjid open" : "Masjid closed") + (os.why ? ` <small>· ${esc(os.why)}</small>` : "");
 
     // table (re-render only when state changes)
     const tab = userTab || "masjid";
@@ -843,6 +894,48 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
   const PREF = "masjid-alerts";
   let alertsOn = false;
   try { alertsOn = localStorage.getItem(PREF) === "on"; } catch (e) {}
+  // push = notifications sent by the server, so they arrive with sound even when the app is closed
+  let prefs = { push: false, adhan: true, status: true };
+  try { Object.assign(prefs, JSON.parse(localStorage.getItem("masjid-push") || "{}")); } catch (e) {}
+  const savePrefs = () => { try { localStorage.setItem("masjid-push", JSON.stringify(prefs)); } catch (e) {} };
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const isStandalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  const b64ToBytes = (k) => { const b = atob(k.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((k.length + 3) % 4)); return Uint8Array.from(b, (c) => c.charCodeAt(0)); };
+  async function pushKey() {
+    try {
+      const r = await fetch("api/push-key", { cache: "no-store" });
+      if (!r.ok || !(r.headers.get("content-type") || "").includes("json")) return null;
+      return (await r.json()).publicKey;
+    } catch (e) { return null; }
+  }
+  async function saveTopics(sub) {
+    const r = await fetch("api/subscribe", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ subscription: sub.toJSON(), topics: { adhan: prefs.adhan, status: prefs.status } }) });
+    if (!r.ok) throw new Error("subscribe failed");
+  }
+  async function startPush() {
+    prefs.push = false;
+    if (!swReg || !("PushManager" in window) || !("Notification" in window) || Notification.permission !== "granted") return false;
+    const key = await pushKey(); if (!key) return false;
+    try {
+      let sub = await swReg.pushManager.getSubscription();
+      if (!sub) sub = await swReg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(key) });
+      await saveTopics(sub);
+      prefs.push = true;
+    } catch (e) { prefs.push = false; }
+    savePrefs();
+    return prefs.push;
+  }
+  async function stopPush() {
+    try {
+      const sub = swReg && (await swReg.pushManager.getSubscription());
+      if (sub) {
+        await fetch("api/unsubscribe", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ endpoint: sub.endpoint }) }).catch(() => {});
+        await sub.unsubscribe();
+      }
+    } catch (e) {}
+    prefs.push = false; savePrefs();
+  }
   const fired = new Set();
   let audioCtx = null, swReg = null;
 
@@ -874,8 +967,9 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
   async function notify(title, body, kind) {
     toast(title, body);
     sound(kind);
+    if (prefs.push && (kind === "adhan" || kind === "reminder")) return;   // the server's push already shows it
     if (!("Notification" in window) || Notification.permission !== "granted") return;
-    const opts = { body, icon: "icon.svg", badge: "icon.svg", tag: kind + title, renotify: true, vibrate: [300, 150, 300] };
+    const opts = { body, icon: "icons/icon-192.png", badge: "icons/icon-192.png", tag: kind + title, renotify: true, silent: false, vibrate: [300, 150, 300] };
     try {
       if (swReg) await swReg.showNotification(title, opts);
       else new Notification(title, opts);
@@ -896,12 +990,17 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
       else if (d >= 60000) fired.add(e.id);
     }
   }
-  function renderAlertState() {
+  function renderAlertState(note) {
     const perm = "Notification" in window ? Notification.permission : "unsupported";
     const s = $("alert-state");
-    if (alertsOn && perm === "granted") { s.textContent = "Alerts are on. Keep this page open or installed on your home screen."; s.className = "state-line on"; $("b-alerts").textContent = "Turn off alerts"; }
-    else if (alertsOn) { s.textContent = "Sound and on-screen alerts are on. Notifications are blocked in this browser."; s.className = "state-line on"; $("b-alerts").textContent = "Turn off alerts"; }
-    else { s.textContent = "Alerts are off on this device."; s.className = "state-line"; $("b-alerts").textContent = "Turn on adhan alerts"; }
+    $("alert-opts").hidden = !alertsOn;
+    $("o-adhan").checked = prefs.adhan; $("o-status").checked = prefs.status;
+    if (note) { s.textContent = note; s.className = "state-line"; }
+    else if (alertsOn && prefs.push) { s.textContent = "Alerts are on. They arrive with sound even when the app is closed."; s.className = "state-line on"; }
+    else if (alertsOn && perm === "denied") { s.textContent = "Notifications are blocked for this site. Allow them in your phone's settings for this app, then turn alerts off and on again."; s.className = "state-line"; }
+    else if (alertsOn) { s.textContent = "Alerts are on while this page is open. Add the app to your home screen to get them when it's closed."; s.className = "state-line on"; }
+    else { s.textContent = "Alerts are off on this device."; s.className = "state-line"; }
+    $("b-alerts").textContent = alertsOn ? "Turn off alerts" : "Turn on alerts";
     $("bell").classList.toggle("on", alertsOn);
     let dismissed = false;
     try { dismissed = localStorage.getItem("masjid-alerts-banner") === "x"; } catch (e) {}
@@ -925,7 +1024,7 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") { setPanel(null); sheet.hidden = true; } });
   // masjid TV: nobody taps, so the strip alternates English and Arabic
   setInterval(() => {
-    $("verse-strip").classList.toggle("show-ar", document.body.classList.contains("screen") && !$("verse-strip").classList.contains("show-ar"));
+    $("verse-strip").classList.toggle("show-ar", document.body.classList.contains("screen") && !!$("vs-ar").textContent && !$("verse-strip").classList.contains("show-ar"));
   }, 12000);
   $("banner-x").addEventListener("click", () => {
     try { localStorage.setItem("masjid-alerts-banner", "x"); } catch (e) {}
@@ -933,16 +1032,25 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
   });
   $("banner-on").addEventListener("click", () => $("b-alerts").click());
   $("b-alerts").addEventListener("click", async () => {
-    if (alertsOn) { alertsOn = false; }
+    if (alertsOn) { alertsOn = false; await stopPush(); }
     else {
-      alertsOn = true;
       chime(); // unlocks audio on this device
+      if (isIOS && !isStandalone) {
+        renderAlertState("On iPhone: tap Share, then “Add to Home Screen”. Open the app from that icon and turn alerts on there.");
+        return;
+      }
+      alertsOn = true;
       try { if ("Notification" in window && Notification.permission === "default") await Notification.requestPermission(); } catch (e) {}
+      await startPush();
     }
     try { localStorage.setItem(PREF, alertsOn ? "on" : "off"); } catch (e) {}
     timeline(now()).forEach((p) => { if (p.adhan <= now()) fired.add("a" + p.ymd + p.key); });
     renderAlertState();
   });
+  ["o-adhan", "o-status"].forEach((id) => $(id).addEventListener("change", async () => {
+    prefs.adhan = $("o-adhan").checked; prefs.status = $("o-status").checked; savePrefs();
+    try { const sub = swReg && (await swReg.pushManager.getSubscription()); if (sub) await saveTopics(sub); } catch (e) {}
+  }));
   $("b-test").addEventListener("click", () => {
     const st = stateAt(now());
     notify(`${st.next ? st.next.name : "Prayer"} — test alert`, "This is how the adhan alert will look and sound.", "adhan");
@@ -962,12 +1070,26 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
   // ---------- boot ----------
   (async () => {
     if ("serviceWorker" in navigator) {
-      try { swReg = await navigator.serviceWorker.register("sw.js"); } catch (e) { swReg = null; }
+      try {
+        await navigator.serviceWorker.register("sw.js");
+        swReg = await navigator.serviceWorker.ready;
+        // a push arrived while the app is open: the imam changed something → show it now
+        navigator.serviceWorker.addEventListener("message", (e) => {
+          const d = (e.data && e.data.type === "push" && e.data.data) || null;
+          if (!d || d.kind === "adhan" || d.kind === "reminder") return;   // the timetable already handles these on screen
+          refreshState();
+          if (document.visibilityState === "visible") { toast(d.title || "", d.body || ""); chime(); }
+        });
+      } catch (e) { swReg = null; }
     }
     await loadTable();
+    if (alertsOn && "Notification" in window && Notification.permission === "granted") startPush().then(() => renderAlertState());
     renderAlertState();
     tick();
     setInterval(tick, 1000);
+    refreshState();
+    setInterval(() => { if (document.visibilityState === "visible") refreshState(); }, 60000);
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refreshState(); });
     // refresh config/times every 6 hours on always-on screens
     setInterval(() => location.reload(), 6 * 3600000);
   })();

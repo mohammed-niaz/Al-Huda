@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Imam Controls · Mešita Al-huda</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0a1f22">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="Imam">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Manrope:wght@400;500;600;700&family=Reem+Kufi:wght@500;600&display=swap">
+<style>
+/* One column, thumb-sized controls: the imam uses this at the door, one-handed. */
+:root {
+  --ground: #0a1f22; --panel: #12322f; --line: rgba(214,167,86,0.22);
+  --brass: #d9aa58; --brass-hi: #f1cf85; --ivory: #f1e9d6; --muted: #a3b8b0; --dim: #6f8a83;
+  --open: #63d394; --open-ink: #06301b; --closed: #e7766a; --closed-ink: #3a0d08;
+  --font-display: "Reem Kufi", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Manrope", "Segoe UI", system-ui, sans-serif;
+  --font-quran: "Amiri Quran", "Amiri", "Traditional Arabic", serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0; background: var(--ground); color: var(--ivory); font-family: var(--font-body); font-size: 16px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: calc(16px + env(safe-area-inset-top, 0px)) calc(40px + env(safe-area-inset-bottom, 0px));
+}
+.wrap { max-width: 560px; margin: 0 auto; display: grid; gap: 16px; }
+.stack { display: grid; gap: 16px; }
+header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+header .brand { display: flex; gap: 10px; align-items: center; min-width: 0; }
+header svg { width: 34px; height: 34px; flex: none; }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: 1.25rem; margin: 0; line-height: 1.15; }
+header p { margin: 0; color: var(--muted); font-size: 0.82rem; }
+a { color: var(--brass-hi); }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 18px; display: grid; gap: 14px; }
+.card h2 { margin: 0; font-family: var(--font-display); font-weight: 500; font-size: 1.08rem; }
+.now { text-align: center; display: grid; gap: 2px; }
+.now .state { font-family: var(--font-display); font-size: 2.2rem; line-height: 1.1; font-weight: 600; }
+.now.open .state { color: var(--open); } .now.closed .state { color: var(--closed); }
+.now .why { color: var(--muted); font-size: 0.92rem; }
+.big { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+button {
+  font: inherit; cursor: pointer; border-radius: 14px; padding: 12px 16px; font-weight: 700;
+  border: 1px solid var(--line); background: rgba(241,233,214,0.05); color: var(--ivory);
+}
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--brass-hi); outline-offset: 2px; }
+button:disabled { opacity: 0.5; cursor: progress; }
+.b-open, .b-close { padding: 20px 10px; font-size: 1.08rem; border: none; }
+.b-open { background: var(--open); color: var(--open-ink); }
+.b-close { background: var(--closed); color: var(--closed-ink); }
+.b-primary { background: var(--brass); color: var(--ground); border-color: var(--brass); }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+label { font-size: 0.85rem; color: var(--muted); font-weight: 600; display: grid; gap: 6px; }
+input[type=text], input[type=password], input[type=time], textarea, select {
+  font: inherit; color: var(--ivory); background: rgba(0,0,0,0.25); border: 1px solid var(--line); border-radius: 12px; padding: 11px 13px; width: 100%;
+}
+textarea { min-height: 88px; resize: vertical; }
+textarea.ar { font-family: var(--font-quran); font-size: 1.25rem; direction: rtl; }
+.check { display: flex; gap: 10px; align-items: center; color: var(--ivory); font-weight: 500; font-size: 0.95rem; }
+.check input { width: 20px; height: 20px; accent-color: var(--brass); flex: none; }
+.seg { display: flex; gap: 4px; padding: 4px; border-radius: 14px; background: rgba(0,0,0,0.22); border: 1px solid var(--line); flex-wrap: wrap; }
+.seg button { flex: 1 1 auto; border: none; background: none; color: var(--muted); padding: 9px 10px; font-weight: 600; font-size: 0.9rem; border-radius: 10px; }
+.seg button[aria-pressed="true"] { background: var(--brass); color: var(--ground); }
+#until-seg { display: grid; grid-template-columns: 1fr 1fr; }
+.msg { min-height: 1.3em; font-size: 0.92rem; font-weight: 600; }
+.msg.ok { color: var(--open); } .msg.err { color: var(--closed); }
+.preview { border: 1px dashed var(--line); border-radius: 14px; padding: 12px 14px; display: grid; gap: 6px; }
+.preview .ar { font-family: var(--font-quran); font-size: 1.3rem; direction: rtl; text-align: right; line-height: 1.9; }
+.preview .en { color: var(--muted); font-size: 0.95rem; }
+.preview .src { color: var(--brass); font-size: 0.8rem; font-weight: 600; }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.stat { background: rgba(0,0,0,0.2); border-radius: 12px; padding: 10px 12px; }
+.stat b { display: block; font-size: 1.45rem; font-variant-numeric: tabular-nums; }
+.stat span { color: var(--muted); font-size: 0.78rem; }
+ul.log { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 0.86rem; }
+ul.log li { color: var(--muted); overflow-wrap: anywhere; }
+ul.log b { color: var(--ivory); font-weight: 600; }
+.hint { color: var(--dim); font-size: 0.82rem; margin: 0; }
+.banner { border: 1px solid var(--closed); color: var(--closed); border-radius: 14px; padding: 12px 14px; font-size: 0.92rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <svg viewBox="100 48 312 392" aria-hidden="true"><path d="M118,430 L118,214 C118,138 186,92 256,62 C326,92 394,138 394,214 L394,430" fill="none" stroke="#d9aa58" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/><path d="M250,402 L257,262 C257,238 269,224 289,221 L313,221 C333,224 345,238 345,262 L352,402 Z" fill="#f1e9d6" stroke="#0a1f22" stroke-width="7" stroke-linejoin="round"/><circle cx="301" cy="178" r="30" fill="#f1e9d6"/><path d="M272,171 C272,151 285,145 301,145 C317,145 330,151 330,171 Z" fill="#d9aa58"/><path d="M160,402 L167,262 C167,238 179,224 199,221 L223,221 C243,224 255,238 255,262 L262,402 Z" fill="#f1e9d6" stroke="#0a1f22" stroke-width="7" stroke-linejoin="round"/><circle cx="211" cy="178" r="30" fill="#f1e9d6"/><path d="M182,171 C182,151 195,145 211,145 C227,145 240,151 240,171 Z" fill="#d9aa58"/><path d="M150,416 L362,416" stroke="#d9aa58" stroke-width="12" stroke-linecap="round"/></svg>
+      <div><h1>Imam controls</h1><p id="who">Mešita Al-huda</p></div>
+    </div>
+    <a href="./">Open the app</a>
+  </header>
+
+  <div class="banner" id="setup-banner" hidden>The server isn't set up yet. The developer needs to run <b>Actions → Set up server</b> on GitHub once.</div>
+
+  <!-- sign in -->
+  <section class="card" id="signin" hidden>
+    <h2>Sign in</h2>
+    <p class="hint">Enter the personal access code you were given. This phone remembers it.</p>
+    <label for="code">Access code<input type="password" id="code" autocomplete="current-password" placeholder="e.g. noor-sabr-1234-huda"></label>
+    <button class="b-primary" id="b-signin">Sign in</button>
+    <div class="msg" id="signin-msg"></div>
+  </section>
+
+  <div id="panel" class="stack" hidden>
+    <!-- masjid status -->
+    <section class="card">
+      <div class="now" id="now"><div class="state" id="now-state">—</div><div class="why" id="now-why"></div></div>
+      <div class="big">
+        <button class="b-open" id="b-open">Open the masjid</button>
+        <button class="b-close" id="b-close">Close the masjid</button>
+      </div>
+      <label>How long
+        <div class="seg" id="until-seg" role="group" aria-label="How long">
+          <button type="button" data-until="timetable" aria-pressed="true" id="u-tt">Until timetable</button>
+          <button type="button" data-until="60" aria-pressed="false">1 hour</button>
+          <button type="button" data-until="120" aria-pressed="false">2 hours</button>
+          <button type="button" data-until="time" aria-pressed="false">Until…</button>
+        </div>
+      </label>
+      <label for="until-time" id="until-time-wrap" hidden>Until this time<input type="time" id="until-time"></label>
+      <label for="message">Note for everyone (optional)<input type="text" id="message" maxlength="140" placeholder="e.g. Back after Asr"></label>
+      <label class="check"><input type="checkbox" id="notify" checked> Send a notification to everyone</label>
+      <div class="msg" id="status-msg"></div>
+      <button id="b-auto">Back to the normal timetable</button>
+      <p class="hint" id="timetable"></p>
+    </section>
+
+    <!-- reminder of the day -->
+    <section class="card">
+      <h2>Reminder of the day</h2>
+      <div class="seg" id="rem-seg" role="group" aria-label="Reminder source">
+        <button type="button" data-src="auto" aria-pressed="true">Automatic</button>
+        <button type="button" data-src="verse" aria-pressed="false">Pick a verse</button>
+        <button type="button" data-src="own" aria-pressed="false">Write my own</button>
+      </div>
+      <p class="hint" id="rem-auto-hint">The app picks a different verse each day.</p>
+      <label for="rem-verse" id="rem-verse-wrap" hidden>Verse<select id="rem-verse"></select></label>
+      <div id="rem-own" class="stack" hidden>
+        <label for="rem-en">Text (English or any language)<textarea id="rem-en" maxlength="1200" placeholder="e.g. The Prophet ﷺ said: Prayer in congregation is twenty-seven times better than praying alone."></textarea></label>
+        <label for="rem-ar">Arabic (optional)<textarea id="rem-ar" class="ar" maxlength="1200" dir="rtl" lang="ar"></textarea></label>
+        <label for="rem-src">Source (optional)<input type="text" id="rem-src" maxlength="120" placeholder="e.g. Sahih al-Bukhari 645"></label>
+      </div>
+      <div class="preview" id="rem-preview" hidden><div class="ar" id="p-ar" lang="ar"></div><div class="en" id="p-en"></div><div class="src" id="p-src"></div></div>
+      <label class="check" id="rem-keep-wrap" hidden><input type="checkbox" id="rem-keep"> Keep it after today (until I change it)</label>
+      <label class="check" id="rem-notify-wrap" hidden><input type="checkbox" id="rem-notify"> Send it as a notification</label>
+      <button class="b-primary" id="b-rem">Show in the app</button>
+      <div class="msg" id="rem-msg"></div>
+      <p class="hint" id="rem-current"></p>
+    </section>
+
+    <!-- announcement -->
+    <section class="card">
+      <h2>Announcement banner</h2>
+      <label for="ann">Shown at the top of the app<textarea id="ann" maxlength="280" placeholder="e.g. Tafsir circle after Isha on Saturday"></textarea></label>
+      <label class="check"><input type="checkbox" id="ann-notify"> Also send as a notification</label>
+      <div class="row">
+        <button class="b-primary" id="b-ann">Publish</button>
+        <button id="b-ann-clear">Remove banner</button>
+      </div>
+      <div class="msg" id="ann-msg"></div>
+    </section>
+
+    <!-- stats -->
+    <section class="card">
+      <h2>Who gets notifications</h2>
+      <div class="stats">
+        <div class="stat"><b id="s-total">–</b><span>phones signed up</span></div>
+        <div class="stat"><b id="s-status">–</b><span>open/closed &amp; reminders</span></div>
+        <div class="stat"><b id="s-adhan">–</b><span>adhan</span></div>
+      </div>
+      <h2>Recent changes</h2>
+      <ul class="log" id="log"></ul>
+      <button id="b-signout">Sign out on this phone</button>
+    </section>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script src="adhan.min.js"></script>
+<script src="data/verses.js"></script>
+<script type="module">
+import { createSchedule } from "./lib/schedule.js";
+const $ = (id) => document.getElementById(id);
+const C = window.MASJID_CONFIG;
+let table = null;
+try { const r = await fetch("data/times.json", { cache: "no-cache" }); if (r.ok) table = await r.json(); } catch (e) {}
+const S = createSchedule({ config: C, table, adhan: window.adhan });
+const VERSES = window.DAILY_VERSES || [];
+const KEY = "masjid-admin-code";
+let code = ""; try { code = localStorage.getItem(KEY) || ""; } catch (e) {}
+let server = { override: null, reminder: null, announcement: null };
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const say = (id, text, ok) => { $(id).textContent = text; $(id).className = "msg " + (ok ? "ok" : "err"); };
+const when = (d) => {
+  if (S.hm(d) === "00:00") return "midnight";
+  const sameDay = S.ymdOf(d) === S.ymdOf(new Date());
+  return sameDay ? S.hm(d) : `${new Intl.DateTimeFormat("en-GB", { timeZone: S.TZ, weekday: "short" }).format(d)} ${S.hm(d)}`;
+};
+
+async function api(path, body) {
+  const r = await fetch("api/" + path, {
+    method: body ? "POST" : "GET", cache: "no-store",
+    headers: { authorization: "Bearer " + code, ...(body ? { "content-type": "application/json" } : {}) },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  let d = {};
+  try { d = await r.json(); } catch (e) { d = { error: "The server can't be reached. Check the internet connection." }; }
+  if (r.status === 503 && d.setup === false) $("setup-banner").hidden = false;
+  if (!r.ok) throw Object.assign(new Error(d.error || "Something went wrong."), { status: r.status });
+  return d;
+}
+
+// ---------------- sign in ----------------
+async function signIn() {
+  code = $("code").value.trim() || code;
+  if (!code) { $("signin").hidden = false; return; }
+  try {
+    const me = await api("admin/me");
+    try { localStorage.setItem(KEY, code); } catch (e) {}
+    $("who").textContent = `Mešita Al-huda · signed in as ${me.name}`;
+    $("signin").hidden = true; $("panel").hidden = false;
+    await refresh();
+  } catch (e) {
+    $("signin").hidden = false; $("panel").hidden = true;
+    if ($("code").value) say("signin-msg", e.message, false);
+  }
+}
+$("b-signin").addEventListener("click", signIn);
+$("code").addEventListener("keydown", (e) => { if (e.key === "Enter") signIn(); });
+$("b-signout").addEventListener("click", () => {
+  try { localStorage.removeItem(KEY); } catch (e) {}
+  code = ""; $("code").value = ""; $("panel").hidden = true; $("signin").hidden = false; $("who").textContent = "Mešita Al-huda";
+});
+
+// ---------------- status ----------------
+let untilChoice = "timetable";
+$("until-seg").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  untilChoice = b.dataset.until;
+  $("until-seg").querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+  $("until-time-wrap").hidden = untilChoice !== "time";
+});
+function chosenUntil() {
+  const n = new Date();
+  if (untilChoice === "60" || untilChoice === "120") return S.addMin(n, +untilChoice);
+  if (untilChoice === "time") {
+    const v = $("until-time").value; if (!v) return null;
+    let u = S.zoned(S.ymdOf(n), v);
+    if (u <= n) u = S.zoned(S.addDays(S.ymdOf(n), 1), v);
+    return u;
+  }
+  return S.nextScheduleChange(n);           // until the timetable next opens or closes
+}
+function renderStatus() {
+  const n = new Date();
+  const st = S.effectiveStatus(n, server.override);
+  $("now").className = "now " + (st.open ? "open" : "closed");
+  $("now-state").textContent = st.open ? "Open" : "Closed";
+  const ov = server.override;
+  const tail = st.change ? (st.open ? ` · until ${when(st.change)}` : ` · opens ${when(st.change)}`) : "";
+  $("now-why").textContent = st.manual
+    ? `Set by ${ov.by} at ${S.hm(new Date(ov.at))}${ov.message ? ` · “${ov.message}”` : ""}${tail}`
+    : `Following the timetable${tail}`;
+  $("b-auto").hidden = !st.manual;
+  const nx = S.nextScheduleChange(n);
+  $("u-tt").textContent = nx ? `Until timetable (${when(nx)})` : "Until timetable";
+  const today = S.openWindows(n).filter((w) => S.ymdOf(w.from) === S.ymdOf(n));
+  $("timetable").textContent = today.length
+    ? "Timetable today: open " + today.map((w) => `${S.hm(w.from)}–${S.hm(w.to)}${w.label ? ` (${w.label})` : ""}`).join(", ")
+    : "Timetable today: closed";
+}
+async function setStatus(mode) {
+  const btns = ["b-open", "b-close", "b-auto"].map($);
+  btns.forEach((b) => (b.disabled = true));
+  try {
+    const n = new Date();
+    let body;
+    if (mode === "auto") {
+      const st = S.effectiveStatus(n, null);
+      body = { mode, notify: $("notify").checked,
+        title: st.open ? "The masjid is open" : "The masjid is closed",
+        body: st.change ? (st.open ? `Until ${S.hm(st.change)}.` : `It opens at ${when(st.change)}.`) : "" };
+    } else {
+      const until = chosenUntil();
+      if (untilChoice === "time" && !until) throw new Error("Pick a time, or choose another option.");
+      const preview = S.effectiveStatus(n, { mode, until: until && until.toISOString() });
+      const msg = $("message").value.trim();
+      body = { mode, message: msg, until: until ? until.toISOString() : null, notify: $("notify").checked,
+        title: mode === "open" ? "The masjid is now open" : "The masjid is now closed",
+        body: msg || (mode === "open"
+          ? `Come and pray in the masjid${preview.change ? ` · open until ${when(preview.change)}` : ""}.`
+          : (preview.change ? `It opens again at ${when(preview.change)}.` : "We'll let you know when it opens.")) };
+    }
+    const d = await api("admin/status", body);
+    server.override = d.override || null;
+    const what = mode === "open" ? "Marked as open" : mode === "closed" ? "Marked as closed" : "Back to the timetable";
+    say("status-msg", `${what}.${body.notify ? ` Notification on its way to ${d.notified} phone${d.notified === 1 ? "" : "s"}.` : ""}`, true);
+    $("message").value = "";
+    renderStatus(); refresh();
+  } catch (e) { say("status-msg", e.message, false); }
+  btns.forEach((b) => (b.disabled = false));
+}
+$("b-open").addEventListener("click", () => setStatus("open"));
+$("b-close").addEventListener("click", () => setStatus("closed"));
+$("b-auto").addEventListener("click", () => setStatus("auto"));
+
+// ---------------- reminder of the day ----------------
+VERSES.forEach((v, i) => {
+  const o = document.createElement("option");
+  o.value = i; o.textContent = `${v.surah} ${v.ref} — ${v.english.slice(0, 70)}${v.english.length > 70 ? "…" : ""}`;
+  $("rem-verse").append(o);
+});
+let remSrc = "auto";
+$("rem-seg").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  remSrc = b.dataset.src;
+  $("rem-seg").querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+  renderReminderForm();
+});
+["rem-verse", "rem-en", "rem-ar", "rem-src"].forEach((id) => $(id).addEventListener("input", renderPreview));
+function draft() {
+  if (remSrc === "verse") {
+    const v = VERSES[+$("rem-verse").value]; if (!v) return null;
+    return { english: v.english, arabic: v.arabic, source: `Surah ${v.surah} ${v.ref}`, ref: v.ref };
+  }
+  if (remSrc === "own") return { english: $("rem-en").value.trim(), arabic: $("rem-ar").value.trim(), source: $("rem-src").value.trim() };
+  return null;
+}
+function renderPreview() {
+  const d = draft();
+  $("rem-preview").hidden = !d || (!d.english && !d.arabic);
+  if (!d) return;
+  $("p-ar").textContent = d.arabic || ""; $("p-ar").hidden = !d.arabic;
+  $("p-en").textContent = d.english || "";
+  $("p-src").textContent = d.source || "";
+}
+function renderReminderForm() {
+  $("rem-auto-hint").hidden = remSrc !== "auto";
+  $("rem-verse-wrap").hidden = remSrc !== "verse";
+  $("rem-own").hidden = remSrc !== "own";
+  $("rem-keep-wrap").hidden = $("rem-notify-wrap").hidden = remSrc === "auto";
+  $("b-rem").textContent = remSrc === "auto" ? "Use the automatic verse" : "Show in the app";
+  renderPreview();
+}
+function renderCurrentReminder() {
+  const r = server.reminder;
+  $("rem-current").textContent = r
+    ? `Showing now: ${r.kind === "verse" ? r.source : "your own reminder"} · set by ${r.by}${r.until ? ` · until ${when(new Date(r.until))}` : " · until changed"}`
+    : "Showing now: the automatic verse of the day.";
+}
+$("b-rem").addEventListener("click", async () => {
+  $("b-rem").disabled = true;
+  try {
+    if (remSrc === "auto") {
+      await api("admin/reminder", { reminder: null });
+      say("rem-msg", "Back to the automatic verse.", true);
+    } else {
+      const r = draft();
+      if (!r || (!r.english && !r.arabic)) throw new Error("Write the reminder text first.");
+      const until = $("rem-keep").checked ? null : S.zoned(S.addDays(S.ymdOf(new Date()), 1), "00:00").toISOString();
+      const d = await api("admin/reminder", { reminder: r, until, notify: $("rem-notify").checked });
+      say("rem-msg", `Reminder is live.${$("rem-notify").checked ? ` Notification on its way to ${d.notified} phone${d.notified === 1 ? "" : "s"}.` : ""}`, true);
+      $("rem-notify").checked = false;
+    }
+    refresh();
+  } catch (e) { say("rem-msg", e.message, false); }
+  $("b-rem").disabled = false;
+});
+
+// ---------------- announcement ----------------
+async function setAnn(text) {
+  try {
+    const d = await api("admin/announcement", { text, notify: $("ann-notify").checked });
+    say("ann-msg", text ? `Banner published.${$("ann-notify").checked ? ` Sent to ${d.notified} phones.` : ""}` : "Banner removed.", true);
+    if (!text) $("ann").value = "";
+    $("ann-notify").checked = false;
+    refresh();
+  } catch (e) { say("ann-msg", e.message, false); }
+}
+$("b-ann").addEventListener("click", () => setAnn($("ann").value.trim()));
+$("b-ann-clear").addEventListener("click", () => setAnn(""));
+
+// ---------------- refresh ----------------
+async function refresh() {
+  try {
+    const r = await fetch("api/state", { cache: "no-store" });
+    const d = await r.json();
+    if (r.status === 503) $("setup-banner").hidden = false;
+    server = { override: d.override || null, reminder: d.reminder || null, announcement: d.announcement || null };
+    if (document.activeElement !== $("ann")) $("ann").value = server.announcement ? server.announcement.text : "";
+  } catch (e) {}
+  renderStatus(); renderCurrentReminder();
+  try {
+    const s = await api("admin/stats");
+    $("s-total").textContent = s.subscribers; $("s-status").textContent = s.status; $("s-adhan").textContent = s.adhan;
+    const f = new Intl.DateTimeFormat("en-GB", { timeZone: S.TZ, weekday: "short", hour: "2-digit", minute: "2-digit" });
+    $("log").innerHTML = s.log.map((l) => `<li><b>${esc(l.who)}</b> · ${esc(l.action)} · ${f.format(new Date(l.at))}</li>`).join("") || "<li>No changes yet.</li>";
+  } catch (e) { if (e.status === 401) { $("panel").hidden = true; $("signin").hidden = false; } }
+}
+
+renderReminderForm();
+if (code) signIn(); else $("signin").hidden = false;
+setInterval(renderStatus, 15000);
+setInterval(() => { if (!$("panel").hidden && document.visibilityState === "visible") refresh(); }, 30000);
+</script>
+</body>
+</html>
