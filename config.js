@@ -70,5 +70,5 @@ window.MASJID_CONFIG = {
 
   // ---- Small things --------------------------------------------
   hijriOffset: 0,                      // shift the Hijri date ±1 day to match local sighting
-  announcement: ""                     // banner text, e.g. "Tarawih begins Saturday after Isha"
+  announcement: ""                     // only used if data/announcement.json is missing; the imam edits it at /imam.html
 };

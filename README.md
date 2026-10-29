@@ -49,6 +49,15 @@ announcement: "Tarawih begins Saturday after Isha",
 
 Save the file on GitHub (pencil icon → Commit). Phones pick up the change on their next refresh; masjid screens reload every 6 hours.
 
+## Announcements (imam.html)
+
+The imam writes the announcement in English, Slovak and Arabic at **/imam.html** and taps **Publish**.
+The page saves `data/announcement.json` to GitHub, Cloudflare republishes, and phones pick it up within about 5 minutes.
+The home screen shows two lines (cycling through the languages); tapping opens all three.
+
+One-time setup on the imam's phone: create a GitHub **fine-grained token** limited to this repository with
+**Contents: Read and write** only, and paste it into the page. It is stored only on that phone.
+
 ## Hosting (Cloudflare Pages)
 
 Live at **https://mesita-alhuda.pages.dev**

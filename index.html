@@ -90,13 +90,34 @@ header.top {
 .status.open .door { filter: drop-shadow(0 0 5px rgba(99,211,148,0.7)); }
 .status.closed { color: var(--brass); }
 .status.closed .lit { opacity: 0.18; }
+/* the imam's closed message: its own small line, max two lines, so a long message never pushes the layout */
+.status-note {
+  margin: 6px auto 0; max-width: min(34ch, 100%); color: var(--muted); font-size: 0.85rem; line-height: 1.4;
+  overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.status-note:empty { display: none; }
 @keyframes doorglow { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 @keyframes archglow { 50% { filter: drop-shadow(0 0 3px rgba(99,211,148,0.35)); } }
 
+/* announcement: two lines at most, cycles English / Slovak / Arabic, tap for all three */
 .announce {
+  display: flex; align-items: center; gap: 12px; width: 100%;
   border: 1px solid var(--line); background: rgba(217,170,88,0.08); color: var(--brass-hi);
-  padding: 10px 16px; border-radius: 12px; font-weight: 500; text-align: center;
+  padding: 10px 16px; border-radius: 12px; font-weight: 500; text-align: left;
 }
+.announce[hidden] { display: none; }
+.an-label { flex: none; font-size: 0.68rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--brass); font-weight: 700; }
+.an-text {
+  flex: 1; min-width: 0; line-height: 1.4; overflow-wrap: anywhere; transition: opacity .4s ease;
+  display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.an-text.fade { opacity: 0; }
+.an-text[lang="ar"] { font-family: var(--font-quran); font-size: 1.1rem; }
+.an-more { flex: none; font-size: 1.3rem; line-height: 1; color: var(--brass); }
+.an-sheet .an-item + .an-item { margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(241,233,214,0.08); }
+.an-sheet .an-lang { font-size: 0.7rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--brass); font-weight: 700; margin-bottom: 4px; }
+.an-sheet .an-body { margin: 0; white-space: pre-line; overflow-wrap: anywhere; line-height: 1.6; }
+.an-sheet .an-body[lang="ar"] { font-family: var(--font-quran); font-size: 1.3rem; direction: rtl; text-align: right; }
 
 /* ---------- main grid ---------- */
 .grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 20px; align-items: stretch; }
@@ -355,6 +376,9 @@ tr.sunrise td { padding-block: 4px; font-size: 0.82rem; }
 /* TV: use the whole screen */
 body.screen .wrap { max-width: none; }
 body.screen .bell:not(.screen-btn), body.screen .verse-strip .vs-more { display: none; }
+/* the daily verse is for the masjid TV only, and gives way to an announcement */
+.verse-strip { display: none; }
+body.screen:not(.has-announce) .verse-strip { display: flex; }
 body.screen .screen-btn { opacity: 0.35; }
 
 /* opening animation: the arch is drawn, then the two worshippers walk in and stand together */
@@ -486,7 +510,11 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
     <button class="x" id="banner-x" aria-label="Dismiss">✕</button>
   </div>
 
-  <div id="announce" class="announce" hidden></div>
+  <button id="announce" class="announce" aria-haspopup="dialog" hidden>
+    <span class="an-label">Notice</span>
+    <span class="an-text" id="an-text"></span>
+    <span class="an-more" aria-hidden="true">›</span>
+  </button>
 
   <div class="grid">
       <section class="hero" aria-live="polite">
@@ -515,6 +543,7 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
           </svg>
           <span id="status-text">Masjid closed</span>
         </div>
+        <p class="status-note" id="status-note"></p>
         <p class="nudge" id="h-nudge"></p>
       </section>
 
@@ -540,6 +569,13 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
     <span class="vs-ref" id="vs-ref"></span>
     <span class="vs-more" aria-hidden="true">›</span>
   </button>
+</div>
+
+<div class="sheet" id="an-sheet" role="dialog" aria-modal="true" aria-label="Announcement" hidden>
+  <section class="card verse an-sheet">
+    <h2>Announcement <button class="x" id="an-x" aria-label="Close">✕</button></h2>
+    <div id="an-all"></div>
+  </section>
 </div>
 
 <div class="sheet" id="verse-sheet" role="dialog" aria-modal="true" aria-label="Reminder of the day" hidden>
@@ -675,7 +711,7 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
   function openState(n) {
   const o = C.openStatus || {};
   if (o.mode === "open") return { open: true, why: "" };
-  if (o.mode === "closed") return { open: false, why: o.closedMessage || "" };
+  if (o.mode === "closed") return { open: false, why: "", note: o.closedMessage || "" };
   const before = o.opensBeforeDhuhr ?? 20, after = o.closesAfterIsha ?? 30;
   const today = ymdOf(n);
   const windows = [addDays(today, -1), today, addDays(today, 1)].map((ymd) => {
@@ -692,7 +728,7 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
     }
   }
   const nx = windows.find((w) => w.from > n);
-  return { open: false, why: o.closedMessage || (nx ? `opens at ${hm(nx.from)}` : "") };
+  return { open: false, why: nx ? `opens at ${hm(nx.from)}` : "", note: o.closedMessage || "" };
 }
 
   // ---------- static content ----------
@@ -709,7 +745,43 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
       catch (e) { toast("Couldn't copy", "Press and hold the address to copy it."); }
     });
   }
-  if (C.announcement) { $("announce").textContent = C.announcement; $("announce").hidden = false; }
+  // ---------- announcement (data/announcement.json, written from imam.html; config.js as fallback) ----------
+  const LANGS = [["en", "English"], ["sk", "Slovensky"], ["ar", "العربية"]];
+  let notice = [], noticeKey = "", noticeIdx = 0;
+  function setAnnouncement(a) {
+    if (typeof a === "string") a = { en: a };
+    notice = LANGS.filter(([k]) => a && a[k] && a[k].trim()).map(([k, label]) => ({ k, label, text: a[k].trim() }));
+    const key = JSON.stringify(notice);
+    if (key === noticeKey) return;
+    noticeKey = key; noticeIdx = 0;
+    $("announce").hidden = !notice.length;
+    document.body.classList.toggle("has-announce", notice.length > 0);
+    $("an-all").innerHTML = "";
+    notice.forEach((x) => {
+      const item = document.createElement("div"); item.className = "an-item";
+      const lang = document.createElement("div"); lang.className = "an-lang"; lang.textContent = x.label;
+      const body = document.createElement("p"); body.className = "an-body"; body.lang = x.k; body.textContent = x.text;
+      item.append(lang, body); $("an-all").append(item);
+    });
+    showNotice();
+  }
+  function showNotice() {
+    const x = notice[noticeIdx]; if (!x) return;
+    $("an-text").textContent = x.text;
+    $("an-text").lang = x.k; $("an-text").dir = x.k === "ar" ? "rtl" : "ltr";
+  }
+  async function loadAnnouncement() {
+    try {
+      const r = await fetch("data/announcement.json", { cache: "no-cache" });
+      if (r.ok) return setAnnouncement(await r.json());
+    } catch (e) {}
+    setAnnouncement(C.announcement || "");
+  }
+  setInterval(() => {
+    if (notice.length < 2) return;
+    $("an-text").classList.add("fade");
+    setTimeout(() => { noticeIdx = (noticeIdx + 1) % notice.length; showNotice(); $("an-text").classList.remove("fade"); }, 400);
+  }, 7000);
 
   function renderDates(n) {
     $("d-greg").textContent = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(n);
@@ -830,6 +902,7 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
     $("status").className = "status " + (os.open ? "open" : "closed");
     document.querySelector(".hero").classList.toggle("is-open", os.open);
     $("status-text").innerHTML = (os.open ? "Masjid open" : "Masjid closed") + (os.why ? ` <small>· ${os.why}</small>` : "");
+    $("status-note").textContent = (!os.open && os.note) || "";
 
     // table (re-render only when state changes)
     const tab = userTab || "masjid";
@@ -922,7 +995,11 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
   $("verse-strip").addEventListener("click", (e) => { e.stopPropagation(); setPanel(null); sheet.hidden = false; $("verse-x").focus(); });
   $("verse-x").addEventListener("click", () => (sheet.hidden = true));
   sheet.addEventListener("click", (e) => { if (e.target === sheet) sheet.hidden = true; });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { setPanel(null); sheet.hidden = true; } });
+  const anSheet = $("an-sheet");
+  $("announce").addEventListener("click", (e) => { e.stopPropagation(); setPanel(null); anSheet.hidden = false; $("an-x").focus(); });
+  $("an-x").addEventListener("click", () => (anSheet.hidden = true));
+  anSheet.addEventListener("click", (e) => { if (e.target === anSheet) anSheet.hidden = true; });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { setPanel(null); sheet.hidden = true; anSheet.hidden = true; } });
   // masjid TV: nobody taps, so the strip alternates English and Arabic
   setInterval(() => {
     $("verse-strip").classList.toggle("show-ar", document.body.classList.contains("screen") && !$("verse-strip").classList.contains("show-ar"));
@@ -964,7 +1041,8 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
     if ("serviceWorker" in navigator) {
       try { swReg = await navigator.serviceWorker.register("sw.js"); } catch (e) { swReg = null; }
     }
-    await loadTable();
+    await Promise.all([loadTable(), loadAnnouncement()]);
+    setInterval(loadAnnouncement, 5 * 60000);
     renderAlertState();
     tick();
     setInterval(tick, 1000);

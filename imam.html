@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Imam Controls</title>
+<meta name="theme-color" content="#0a1f22">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="manifest" href="imam.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Imam">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri&family=Manrope:wght@400;500;600;700&family=Reem+Kufi:wght@500;600&display=swap">
+<style>
+/* Imam controls: write the announcement in three languages and publish it to the site. */
+:root {
+  --ground: #0a1f22; --panel: #12322f; --line: rgba(214, 167, 86, 0.22);
+  --brass: #d9aa58; --brass-hi: #f1cf85; --ivory: #f1e9d6; --muted: #a3b8b0; --dim: #6f8a83;
+  --open: #63d394; --closed: #e7766a;
+  --font-display: "Reem Kufi", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Manrope", "Segoe UI", system-ui, sans-serif;
+  --font-ar: "Amiri", "Traditional Arabic", "Noto Naskh Arabic", serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--ground); color: var(--ivory); font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  padding: 18px max(16px, env(safe-area-inset-right, 0px)) 40px max(16px, env(safe-area-inset-left, 0px));
+}
+.wrap { max-width: 640px; margin: 0 auto; display: grid; gap: 16px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+h1 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 1.4rem; }
+header a { color: var(--muted); font-size: 0.88rem; }
+.card { background: rgba(18,50,47,0.78); border: 1px solid var(--line); border-radius: 18px; padding: 18px; }
+.card h2 { margin: 0 0 4px; font-family: var(--font-display); font-weight: 500; font-size: 1.1rem; }
+.hint { margin: 0 0 14px; color: var(--muted); font-size: 0.88rem; }
+label { display: block; margin: 14px 0 6px; font-size: 0.72rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--brass); font-weight: 700; }
+textarea, input {
+  width: 100%; font: inherit; color: var(--ivory); background: rgba(241,233,214,0.05);
+  border: 1px solid rgba(241,233,214,0.14); border-radius: 12px; padding: 10px 12px;
+}
+textarea { min-height: 84px; resize: vertical; }
+textarea:focus, input:focus { outline: 2px solid var(--brass); outline-offset: 1px; }
+textarea[dir="rtl"] { font-family: var(--font-ar); font-size: 1.15rem; }
+.count { margin-top: 4px; font-size: 0.75rem; color: var(--dim); text-align: right; }
+.btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+button {
+  font: inherit; cursor: pointer; border-radius: 12px; padding: 11px 18px; font-weight: 600; font-size: 0.92rem;
+  border: 1px solid var(--line); background: rgba(241,233,214,0.05); color: var(--ivory);
+}
+button.primary { background: var(--brass); color: var(--ground); border-color: var(--brass); }
+button:disabled { opacity: 0.5; cursor: default; }
+button:focus-visible { outline: 2px solid var(--brass-hi); outline-offset: 2px; }
+.msg { margin-top: 12px; font-size: 0.88rem; color: var(--muted); }
+.msg.ok { color: var(--open); }
+.msg.err { color: var(--closed); }
+
+/* preview: the same two-line banner the jama'ah sees */
+.preview { display: flex; align-items: center; gap: 12px; border: 1px solid var(--line); background: rgba(217,170,88,0.08); color: var(--brass-hi); padding: 10px 16px; border-radius: 12px; font-weight: 500; }
+.preview .lbl { flex: none; font-size: 0.68rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--brass); font-weight: 700; }
+.preview .txt { flex: 1; min-width: 0; line-height: 1.4; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.preview .txt[lang="ar"] { font-family: var(--font-ar); font-size: 1.1rem; }
+.preview .txt:empty::before { content: "No announcement: the banner is hidden."; color: var(--dim); }
+.tabs { display: flex; gap: 4px; margin-bottom: 10px; }
+.tabs button { padding: 6px 12px; font-size: 0.82rem; }
+.tabs button[aria-pressed="true"] { background: var(--brass); color: var(--ground); border-color: var(--brass); }
+
+details summary { cursor: pointer; color: var(--muted); font-size: 0.9rem; }
+details ol { padding-left: 20px; color: var(--muted); font-size: 0.86rem; }
+details code { color: var(--brass-hi); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Imam controls</h1>
+    <a href="./" id="back">Back to the app</a>
+  </header>
+
+  <section class="card install" id="install" hidden>
+    <h2>Install on this phone</h2>
+    <p class="hint" id="install-hint">Add Imam controls to the home screen so it opens like an app, without the browser bar.</p>
+    <button class="primary" id="b-install" hidden>Install app</button>
+  </section>
+
+  <section class="card">
+    <h2>Announcement</h2>
+    <p class="hint">Write it in all three languages. Leave every box empty to remove the banner. The app shows two lines and people tap it to read everything.</p>
+
+    <label for="f-en">English</label>
+    <textarea id="f-en" lang="en" maxlength="600"></textarea>
+    <div class="count" id="c-en"></div>
+
+    <label for="f-sk">Slovensky</label>
+    <textarea id="f-sk" lang="sk" maxlength="600"></textarea>
+    <div class="count" id="c-sk"></div>
+
+    <label for="f-ar">العربية</label>
+    <textarea id="f-ar" lang="ar" dir="rtl" maxlength="600"></textarea>
+    <div class="count" id="c-ar"></div>
+
+    <div class="btn-row">
+      <button class="primary" id="b-save">Publish</button>
+      <button id="b-clear">Remove announcement</button>
+    </div>
+    <div class="msg" id="msg"></div>
+  </section>
+
+  <section class="card">
+    <h2>Preview</h2>
+    <p class="hint">How the banner looks in the app. On the app it switches language every few seconds.</p>
+    <div class="tabs" id="p-tabs">
+      <button data-k="en" aria-pressed="true">English</button>
+      <button data-k="sk" aria-pressed="false">Slovensky</button>
+      <button data-k="ar" aria-pressed="false">العربية</button>
+    </div>
+    <div class="preview"><span class="lbl">Notice</span><span class="txt" id="p-txt"></span></div>
+  </section>
+
+  <section class="card">
+    <details id="setup">
+      <summary>Connection to GitHub (one-time setup on this phone)</summary>
+      <ol>
+        <li>On github.com go to <b>Settings → Developer settings → Fine-grained tokens → Generate new token</b>.</li>
+        <li>Repository access: <b>Only select repositories → Al-Huda</b>.</li>
+        <li>Permissions → Repository permissions → <b>Contents: Read and write</b>. Nothing else.</li>
+        <li>Copy the token and paste it below. It is stored only on this device.</li>
+      </ol>
+      <label for="f-token">GitHub token</label>
+      <input id="f-token" type="password" autocomplete="off" placeholder="github_pat_…">
+      <div class="btn-row">
+        <button id="b-token">Save token</button>
+        <button id="b-forget">Forget token</button>
+      </div>
+    </details>
+  </section>
+</div>
+
+<script>
+(() => {
+  const REPO = "mohammed-niaz/Al-Huda", BRANCH = "main", PATH = "data/announcement.json";
+  const API = `https://api.github.com/repos/${REPO}/contents/${PATH}`;
+  const $ = (id) => document.getElementById(id);
+  const KEYS = ["en", "sk", "ar"];
+  let sha = null, previewK = "en";
+
+  const store = {
+    get() { try { return localStorage.getItem("imam-gh-token") || ""; } catch (e) { return ""; } },
+    set(v) { try { v ? localStorage.setItem("imam-gh-token", v) : localStorage.removeItem("imam-gh-token"); } catch (e) {} }
+  };
+  const say = (text, cls) => { $("msg").textContent = text; $("msg").className = "msg" + (cls ? " " + cls : ""); };
+  const headers = () => ({ Authorization: `Bearer ${store.get()}`, Accept: "application/vnd.github+json" });
+  const toB64 = (s) => { const b = new TextEncoder().encode(s); let bin = ""; b.forEach((x) => (bin += String.fromCharCode(x))); return btoa(bin); };
+  const fromB64 = (s) => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\s/g, "")), (c) => c.charCodeAt(0)));
+
+  function fill(a) { KEYS.forEach((k) => ($("f-" + k).value = (a && a[k]) || "")); refresh(); }
+  function refresh() {
+    KEYS.forEach((k) => ($("c-" + k).textContent = `${$("f-" + k).value.length} / 600`));
+    const t = $("f-" + previewK).value.trim();
+    $("p-txt").textContent = t; $("p-txt").lang = previewK; $("p-txt").dir = previewK === "ar" ? "rtl" : "ltr";
+  }
+  KEYS.forEach((k) => $("f-" + k).addEventListener("input", refresh));
+  $("p-tabs").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    previewK = b.dataset.k;
+    $("p-tabs").querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+    refresh();
+  });
+
+  // current text: from GitHub when connected (latest, with its sha), otherwise from the live site
+  async function load() {
+    if (store.get()) {
+      try {
+        const r = await fetch(`${API}?ref=${BRANCH}`, { headers: headers(), cache: "no-store" });
+        if (r.ok) { const j = await r.json(); sha = j.sha; fill(JSON.parse(fromB64(j.content))); return; }
+        if (r.status === 401) say("The saved token is not valid any more. Set it again below.", "err");
+      } catch (e) {}
+    }
+    try { const r = await fetch(PATH, { cache: "no-cache" }); if (r.ok) fill(await r.json()); } catch (e) {}
+    if (!store.get()) { $("setup").open = true; say("Connect to GitHub below before publishing."); }
+  }
+
+  async function publish(data, note) {
+    if (!store.get()) { $("setup").open = true; say("Add the GitHub token first (below).", "err"); return; }
+    $("b-save").disabled = $("b-clear").disabled = true;
+    say("Publishing…");
+    try {
+      if (!sha) { const r = await fetch(`${API}?ref=${BRANCH}`, { headers: headers(), cache: "no-store" }); if (r.ok) sha = (await r.json()).sha; }
+      const body = { message: note, branch: BRANCH, content: toB64(JSON.stringify(data, null, 2) + "\n") };
+      if (sha) body.sha = sha;
+      const r = await fetch(API, { method: "PUT", headers: Object.assign({ "Content-Type": "application/json" }, headers()), body: JSON.stringify(body) });
+      if (r.status === 409) { sha = null; throw new Error("Someone else changed it at the same time. Reload the page and try again."); }
+      if (r.status === 401 || r.status === 403) throw new Error("GitHub refused the token. Check it has Contents: Read and write for Al-Huda.");
+      if (!r.ok) throw new Error(`GitHub error ${r.status}.`);
+      sha = (await r.json()).content.sha;
+      say("Published. Phones show it within about 5 minutes (the site needs ~1 minute to update).", "ok");
+    } catch (e) {
+      say(e.message || "Could not publish. Check the internet connection.", "err");
+    } finally {
+      $("b-save").disabled = $("b-clear").disabled = false;
+    }
+  }
+  $("b-save").addEventListener("click", () => {
+    const data = {}; KEYS.forEach((k) => (data[k] = $("f-" + k).value.trim()));
+    if (KEYS.every((k) => !data[k])) return $("b-clear").click();
+    data.updated = new Date().toISOString();
+    publish(data, "Update announcement");
+  });
+  $("b-clear").addEventListener("click", () => {
+    if (!confirm("Remove the announcement from the app?")) return;
+    fill(null);
+    publish({ en: "", sk: "", ar: "", updated: new Date().toISOString() }, "Remove announcement");
+  });
+  $("b-token").addEventListener("click", () => {
+    const v = $("f-token").value.trim(); if (!v) return;
+    store.set(v); $("f-token").value = ""; $("setup").open = false; say("Token saved on this device.", "ok"); load();
+  });
+  $("b-forget").addEventListener("click", () => { store.set(""); sha = null; say("Token removed from this device."); });
+
+  // ---- install as its own app ----
+  const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  if (standalone) $("back").hidden = true; // the installed app is only the controls
+  else {
+    let prompt = null;
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault(); prompt = e;
+      $("install").hidden = false; $("b-install").hidden = false;
+    });
+    $("b-install").addEventListener("click", async () => {
+      if (!prompt) return;
+      prompt.prompt(); await prompt.userChoice; prompt = null;
+      $("install").hidden = true;
+    });
+    window.addEventListener("appinstalled", () => ($("install").hidden = true));
+    // iPhone has no install prompt: explain the Share menu instead
+    if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+      $("install-hint").textContent = "Tap the Share button in Safari, then “Add to Home Screen”. It then opens like an app.";
+      $("install").hidden = false;
+    }
+  }
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+
+  load();
+})();
+</script>
+</body>
+</html>
