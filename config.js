@@ -70,5 +70,5 @@ window.MASJID_CONFIG = {
 
   // ---- Small things --------------------------------------------
   hijriOffset: 0,                      // shift the Hijri date ±1 day to match local sighting
-  announcement: ""                     // only used if data/announcement.json is missing; the imam edits it at /imam.html
+  announcement: ""                     // fallback banner text; normally the imam posts it from /admin.html
 };

@@ -1,9 +1,9 @@
 {
-  "id": "./imam.html",
+  "id": "./admin.html",
   "name": "Mešita Al-huda — Imam Controls",
   "short_name": "Imam",
-  "start_url": "./imam.html",
-  "scope": "./imam",
+  "start_url": "./admin.html",
+  "scope": "./admin",
   "display": "standalone",
   "background_color": "#0a1f22",
   "theme_color": "#0a1f22",
