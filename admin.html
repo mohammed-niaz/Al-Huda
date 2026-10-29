@@ -48,6 +48,10 @@ a { color: var(--brass-hi); }
 .now .state { font-family: var(--font-display); font-size: 2.2rem; line-height: 1.1; font-weight: 600; }
 .now.open .state { color: var(--open); } .now.closed .state { color: var(--closed); }
 .now .why { color: var(--muted); font-size: 0.92rem; }
+.now .note { justify-self: center; max-width: 100%; margin-top: 2px; color: var(--ivory); font-size: 0.95rem; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.now .note:empty { display: none; }
+.now .why { overflow-wrap: anywhere; }
+.wrap > *, .card, .card > * { min-width: 0; }
 .big { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 button {
   font: inherit; cursor: pointer; border-radius: 14px; padding: 12px 16px; font-weight: 700;
@@ -120,7 +124,7 @@ ul.log b { color: var(--ivory); font-weight: 600; }
   <div id="panel" class="stack" hidden>
     <!-- masjid status -->
     <section class="card">
-      <div class="now" id="now"><div class="state" id="now-state">—</div><div class="why" id="now-why"></div></div>
+      <div class="now" id="now"><div class="state" id="now-state">—</div><div class="why" id="now-why"></div><div class="note" id="now-note"></div></div>
       <div class="big">
         <button class="b-open" id="b-open">Open the masjid</button>
         <button class="b-close" id="b-close">Close the masjid</button>
@@ -278,8 +282,9 @@ function renderStatus() {
   const ov = server.override;
   const tail = st.change ? (st.open ? ` · until ${when(st.change)}` : ` · opens ${when(st.change)}`) : "";
   $("now-why").textContent = st.manual
-    ? `Set by ${ov.by} at ${S.hm(new Date(ov.at))}${ov.message ? ` · “${ov.message}”` : ""}${tail}`
+    ? `Set by ${ov.by} at ${S.hm(new Date(ov.at))}${tail}`
     : `Following the timetable${tail}`;
+  $("now-note").textContent = st.manual && ov.message ? `“${ov.message}”` : "";
   $("b-auto").hidden = !st.manual;
   const nx = S.nextScheduleChange(n);
   $("u-tt").textContent = nx ? `Until timetable (${when(nx)})` : "Until timetable";
