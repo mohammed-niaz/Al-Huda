@@ -29,7 +29,8 @@ async function loadSchedule(env) {
   const config = JSON5.parse(src.slice(src.indexOf("{"), src.lastIndexOf("}") + 1));
   let table = null;
   try { if (tRes.ok) table = await tRes.json(); } catch (e) { table = null; }
-  return createSchedule({ config, table, adhan });
+  const jamaah = await kvGet(env.DB, "jamaah");
+  return createSchedule({ config, table, adhan, jamaah });
 }
 
 // ---- every minute: put due adhan / reminder notifications into the outbox ----
@@ -42,16 +43,17 @@ async function queueDueAdhans(env, minute) {
     if (inMinute(p.adhan)) {
       rows.push({
         id: `adhan-${p.ymd}-${p.key}`,
+        // only prayers the imam ticked as held at the masjid mention the iqamah
         payload: p.name === "Jumu'ah"
           ? { title: "Jumu'ah — the khutbah is starting", body: `Iqamah at ${S.hm(p.iqamah)}. Come to the masjid.`, tag: "adhan", kind: "adhan", url: "./" }
-          : { title: `${p.name} — adhan`, body: `Iqamah at ${S.hm(p.iqamah)}. Come to the masjid.`, tag: "adhan", kind: "adhan", url: "./" },
+          : { title: `${p.name} — adhan`, body: p.atMasjid ? `Iqamah at ${S.hm(p.iqamah)}. Come to the masjid.` : `It is time for ${p.name}.`, tag: "adhan", kind: "adhan", url: "./" },
         opts: { ttl: Math.max(120, Math.round((p.iqamah - p.adhan) / 1000) + 300), urgency: "high", topic: "adhan" }
       });
     }
     if (N.reminderBeforeAdhan && inMinute(S.addMin(p.adhan, -N.reminderBeforeAdhan))) {
       rows.push({
         id: `remind-${p.ymd}-${p.key}`,
-        payload: { title: `${p.name} in ${N.reminderBeforeAdhan} minutes`, body: `Adhan ${S.hm(p.adhan)} · Iqamah ${S.hm(p.iqamah)}. Make wudu and head to the masjid.`, tag: "adhan", kind: "reminder", url: "./" },
+        payload: { title: `${p.name} in ${N.reminderBeforeAdhan} minutes`, body: p.atMasjid ? `Adhan ${S.hm(p.adhan)} · Iqamah ${S.hm(p.iqamah)}. Make wudu and head to the masjid.` : `Adhan at ${S.hm(p.adhan)}.`, tag: "adhan", kind: "reminder", url: "./" },
         opts: { ttl: N.reminderBeforeAdhan * 60, urgency: "high", topic: "adhan" }
       });
     }

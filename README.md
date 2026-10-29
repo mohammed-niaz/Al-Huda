@@ -117,6 +117,13 @@ openStatus: {
 Save on GitHub (pencil → Commit). The site and the notification worker both read the live
 `config.js`, so nothing else is needed.
 
+## Prayers at the Masjid
+
+In `/admin.html` → **Prayers at the Masjid** the imam ticks which prayers are held at the masjid and can set a
+fixed iqamah for each (empty = the rule in `config.js`). Only ticked prayers appear in the app's "At the Masjid"
+tab, get an iqamah countdown, and say "Come to the masjid" in notifications. With none ticked the tab says
+"No prayers performed today at the Masjid". The choice stays until he changes it. Jumu'ah is always shown on Fridays.
+
 ## Announcements
 
 In `/admin.html` the imam writes the announcement in English, Slovak and Arabic (any can be left empty).

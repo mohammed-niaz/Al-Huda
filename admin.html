@@ -6,8 +6,8 @@
 <title>Imam Controls · Mešita Al-huda</title>
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#0a1f22">
-<link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/imam.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/imam-apple-touch-icon.png">
 <meta name="apple-mobile-web-app-title" content="Imam">
 <link rel="manifest" href="admin.webmanifest">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -91,13 +91,106 @@ ul.log li { color: var(--muted); overflow-wrap: anywhere; }
 ul.log b { color: var(--ivory); font-weight: 600; }
 .hint { color: var(--dim); font-size: 0.82rem; margin: 0; }
 .banner { border: 1px solid var(--closed); color: var(--closed); border-radius: 14px; padding: 12px 14px; font-size: 0.92rem; }
+
+/* home: one icon button per control; each opens its own window */
+.home { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.tile {
+  display: grid; gap: 6px; align-content: start; min-height: 128px; padding: 16px; border-radius: 18px;
+  background: var(--panel); border: 1px solid var(--line); color: var(--ivory); text-decoration: none;
+}
+.tile:active { transform: scale(0.98); }
+.tile:focus-visible { outline: 2px solid var(--brass-hi); outline-offset: 2px; }
+.tile .ic { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; background: rgba(217,170,88,0.12); color: var(--brass); }
+.tile .ic svg { width: 24px; height: 24px; }
+.tile b { font-family: var(--font-display); font-weight: 500; font-size: 1.02rem; line-height: 1.2; }
+.tile span { color: var(--muted); font-size: 0.82rem; line-height: 1.3; overflow-wrap: anywhere; }
+.tile.open .ic { background: rgba(99,211,148,0.15); color: var(--open); }
+.tile.open span { color: var(--open); }
+.tile.closed .ic { background: rgba(231,118,106,0.14); color: var(--closed); }
+.tile.wide { grid-column: 1 / -1; min-height: 0; grid-template-columns: auto 1fr; align-items: center; column-gap: 14px; }
+.tile.wide .ic { grid-row: span 2; }
+.view { display: grid; gap: 14px; }
+.view-head { display: flex; align-items: center; gap: 10px; }
+.view-head h2 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 1.3rem; }
+.back { flex: none; width: 42px; height: 42px; padding: 0; border-radius: 50%; display: grid; place-items: center; font-size: 1.5rem; line-height: 1; color: var(--brass); }
+body.in-view #install { display: none; }
+
+/* prayers at the masjid */
+.jm { display: grid; gap: 8px; }
+.jm-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 14px; background: rgba(0,0,0,0.2); border: 1px solid transparent; }
+.jm-row.on { border-color: var(--line); background: rgba(217,170,88,0.08); }
+.jm-row .check { font-size: 1.05rem; font-weight: 700; }
+.jm-row .check small { display: block; color: var(--dim); font-size: 0.78rem; font-weight: 500; }
+.jm-iq { display: grid; gap: 2px; justify-items: end; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; }
+.jm-iq input { width: 140px; font-size: 1.05rem; font-weight: 700; color: var(--brass-hi); text-align: center; padding: 8px 6px; }
+.jm-iq input:disabled { opacity: 0.35; }
+.jm-iq small { text-transform: none; letter-spacing: 0; color: var(--dim); font-weight: 500; }
+
+/* opening animation: the arch is drawn, the imam rises into it, the Qur'an opens */
+.splash { position: fixed; inset: 0; z-index: 100; display: grid; place-content: center; justify-items: center; gap: 16px; background: radial-gradient(ellipse 70% 50% at 50% 40%, rgba(217,170,88,0.14), transparent 70%), var(--ground); transition: opacity .6s ease, visibility .6s; }
+.splash.done { opacity: 0; visibility: hidden; }
+.splash svg { width: min(190px, 46vw); height: auto; overflow: visible; }
+.splash .s-arch { stroke-dasharray: 1; stroke-dashoffset: 1; animation: s-draw 1s cubic-bezier(.6,0,.3,1) .15s forwards; }
+.splash .s-imam { opacity: 0; transform: translateY(40px); animation: s-rise .8s cubic-bezier(.2,.8,.2,1) 1s forwards; }
+.splash .s-book { transform-box: fill-box; transform-origin: center; transform: scaleX(0); animation: s-open .5s ease-out 1.7s forwards; }
+.splash .s-base { transform-box: fill-box; transform-origin: center; transform: scaleX(0); animation: s-open .5s ease-out 1.9s forwards; }
+.splash .s-name { font-family: var(--font-display); font-size: 1.5rem; font-weight: 600; opacity: 0; animation: s-fade .6s ease 2.1s forwards; }
+@keyframes s-draw { to { stroke-dashoffset: 0; } }
+@keyframes s-rise { to { opacity: 1; transform: none; } }
+@keyframes s-open { to { transform: scaleX(1); } }
+@keyframes s-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .splash { display: none; } }
 </style>
 </head>
 <body>
+<!-- the imam icon; the splash and the header reuse it -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="imam-figure">
+      <path d="M190,402 L199,252 C199,222 215,204 241,200 L271,200 C297,204 313,222 313,252 L322,402 Z" fill="#f1e9d6" stroke="#0a1f22" stroke-width="7" stroke-linejoin="round"/>
+      <circle cx="256" cy="152" r="34" fill="#f1e9d6"/>
+      <path d="M222,145 C222,121 238,112 256,112 C274,112 290,121 290,145 Z" fill="#d9aa58"/>
+    </g>
+    <g id="imam-book">
+      <g stroke="#0a1f22" stroke-width="5" stroke-linejoin="round">
+        <path d="M256,272 L200,258 L200,314 L256,330 Z" fill="#2f7a5c"/>
+        <path d="M256,272 L312,258 L312,314 L256,330 Z" fill="#2f7a5c"/>
+        <path d="M256,278 L208,266 L208,308 L256,322 Z" fill="#f1e9d6"/>
+        <path d="M256,278 L304,266 L304,308 L256,322 Z" fill="#f1e9d6"/>
+      </g>
+      <path d="M218,281 L246,288 M218,293 L246,300 M266,288 L294,281 M266,300 L294,293" stroke="#d9aa58" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="203" cy="318" r="11" fill="#f1e9d6" stroke="#0a1f22" stroke-width="5"/>
+      <circle cx="309" cy="318" r="11" fill="#f1e9d6" stroke="#0a1f22" stroke-width="5"/>
+    </g>
+  </defs>
+</svg>
+
+<div class="splash" id="splash" aria-hidden="true">
+  <svg viewBox="100 48 312 392">
+    <path class="s-arch" pathLength="1" d="M118,430 L118,214 C118,138 186,92 256,62 C326,92 394,138 394,214 L394,430" fill="none" stroke="#d9aa58" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+    <g class="s-imam"><use href="#imam-figure"/></g>
+    <g class="s-book"><use href="#imam-book"/></g>
+    <path class="s-base" d="M150,416 L362,416" stroke="#d9aa58" stroke-width="12" stroke-linecap="round"/>
+  </svg>
+  <div class="s-name">Imam controls</div>
+</div>
+<script>
+// once per visit; tap to skip
+(() => {
+  const s = document.getElementById("splash");
+  let seen = false;
+  try { seen = sessionStorage.getItem("imam-splash") === "1"; sessionStorage.setItem("imam-splash", "1"); } catch (e) {}
+  if (seen || matchMedia("(prefers-reduced-motion: reduce)").matches) { s.remove(); return; }
+  const hide = () => { s.classList.add("done"); setTimeout(() => s.remove(), 700); };
+  s.addEventListener("click", hide);
+  setTimeout(hide, 3000);
+})();
+</script>
+
 <div class="wrap">
   <header>
     <div class="brand">
-      <svg viewBox="100 48 312 392" aria-hidden="true"><path d="M118,430 L118,214 C118,138 186,92 256,62 C326,92 394,138 394,214 L394,430" fill="none" stroke="#d9aa58" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/><path d="M250,402 L257,262 C257,238 269,224 289,221 L313,221 C333,224 345,238 345,262 L352,402 Z" fill="#f1e9d6" stroke="#0a1f22" stroke-width="7" stroke-linejoin="round"/><circle cx="301" cy="178" r="30" fill="#f1e9d6"/><path d="M272,171 C272,151 285,145 301,145 C317,145 330,151 330,171 Z" fill="#d9aa58"/><path d="M160,402 L167,262 C167,238 179,224 199,221 L223,221 C243,224 255,238 255,262 L262,402 Z" fill="#f1e9d6" stroke="#0a1f22" stroke-width="7" stroke-linejoin="round"/><circle cx="211" cy="178" r="30" fill="#f1e9d6"/><path d="M182,171 C182,151 195,145 211,145 C227,145 240,151 240,171 Z" fill="#d9aa58"/><path d="M150,416 L362,416" stroke="#d9aa58" stroke-width="12" stroke-linecap="round"/></svg>
+      <svg viewBox="100 48 312 392" aria-hidden="true"><path d="M118,430 L118,214 C118,138 186,92 256,62 C326,92 394,138 394,214 L394,430" fill="none" stroke="#d9aa58" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/><use href="#imam-figure"/><use href="#imam-book"/><path d="M150,416 L362,416" stroke="#d9aa58" stroke-width="12" stroke-linecap="round"/></svg>
       <div><h1>Imam controls</h1><p id="who">Mešita Al-huda</p></div>
     </div>
     <a href="./" id="open-app">Open the app</a>
@@ -122,12 +215,38 @@ ul.log b { color: var(--ivory); font-weight: 600; }
   </section>
 
   <div id="panel" class="stack" hidden>
+    <!-- home: one button per control -->
+    <nav class="home" id="home" aria-label="Controls">
+      <a class="tile" id="t-status" href="#status">
+        <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 21.5V10a7.5 7.5 0 0 1 15 0v11.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 21.5V11a4 4 0 0 1 8 0v10.5z" fill="currentColor"/></svg></div>
+        <b>Masjid status</b><span id="ts-status">—</span>
+      </a>
+      <a class="tile" href="#prayers">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+        <b>Prayers at the Masjid</b><span id="ts-prayers">—</span>
+      </a>
+      <a class="tile" href="#announce">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M3 10v4h4l6 4V6L7 10z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" stroke-linecap="round"/></svg></div>
+        <b>Announcement</b><span id="ts-ann">—</span>
+      </a>
+      <a class="tile" href="#reminder">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5z"/><path d="M12 6.5v13"/></svg></div>
+        <b>Reminder of the day</b><span id="ts-rem">—</span>
+      </a>
+      <a class="tile wide" href="#activity">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 22a2.5 2.5 0 0 0 2.4-1.8H9.6A2.5 2.5 0 0 0 12 22zm7-6.5V11a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v4.5L3 17.5V19h18v-1.5z"/></svg></div>
+        <b>Notifications &amp; activity</b><span id="ts-act">—</span>
+      </a>
+    </nav>
+
     <!-- masjid status -->
+    <section class="view" id="v-status" hidden>
+    <div class="view-head"><button class="back" aria-label="Back">‹</button><h2>Masjid status</h2></div>
     <section class="card">
       <div class="now" id="now"><div class="state" id="now-state">—</div><div class="why" id="now-why"></div><div class="note" id="now-note"></div></div>
       <div class="big">
-        <button class="b-open" id="b-open">Open the masjid</button>
-        <button class="b-close" id="b-close">Close the masjid</button>
+        <button class="b-open" id="b-open">OPEN</button>
+        <button class="b-close" id="b-close">CLOSE</button>
       </div>
       <label>How long
         <div class="seg" id="until-seg" role="group" aria-label="How long">
@@ -144,10 +263,25 @@ ul.log b { color: var(--ivory); font-weight: 600; }
       <button id="b-auto">Back to the normal timetable</button>
       <p class="hint" id="timetable"></p>
     </section>
+    </section>
+
+    <!-- prayers held at the masjid + their iqamah -->
+    <section class="view" id="v-prayers" hidden>
+    <div class="view-head"><button class="back" aria-label="Back">‹</button><h2>Prayers at the Masjid</h2></div>
+    <section class="card">
+      <p class="hint">Tick the prayers held at the masjid. Only these show in the app's “At the Masjid” tab; with none ticked it says “No prayers performed today at the Masjid”. Leave the iqamah empty to keep the usual time.</p>
+      <div class="jm" id="jm-list"></div>
+      <p class="hint" id="jm-friday"></p>
+      <button class="b-primary" id="b-jm">Save</button>
+      <div class="msg" id="jm-msg"></div>
+      <p class="hint" id="jm-current"></p>
+    </section>
+    </section>
 
     <!-- reminder of the day -->
+    <section class="view" id="v-reminder" hidden>
+    <div class="view-head"><button class="back" aria-label="Back">‹</button><h2>Reminder of the day</h2></div>
     <section class="card">
-      <h2>Reminder of the day</h2>
       <div class="seg" id="rem-seg" role="group" aria-label="Reminder source">
         <button type="button" data-src="auto" aria-pressed="true">Automatic</button>
         <button type="button" data-src="verse" aria-pressed="false">Pick a verse</button>
@@ -167,10 +301,12 @@ ul.log b { color: var(--ivory); font-weight: 600; }
       <div class="msg" id="rem-msg"></div>
       <p class="hint" id="rem-current"></p>
     </section>
+    </section>
 
     <!-- announcement -->
+    <section class="view" id="v-announce" hidden>
+    <div class="view-head"><button class="back" aria-label="Back">‹</button><h2>Announcement</h2></div>
     <section class="card">
-      <h2>Announcement banner</h2>
       <p class="hint">The app shows two lines and switches language every few seconds; people tap it to read everything. Leave a language empty to skip it.</p>
       <label for="ann-en">English<textarea id="ann-en" maxlength="600" lang="en" placeholder="e.g. Tafsir circle after Isha on Saturday"></textarea></label>
       <label for="ann-sk">Slovensky<textarea id="ann-sk" maxlength="600" lang="sk" placeholder="napr. Tafsír po Iši v sobotu"></textarea></label>
@@ -182,8 +318,11 @@ ul.log b { color: var(--ivory); font-weight: 600; }
       </div>
       <div class="msg" id="ann-msg"></div>
     </section>
+    </section>
 
     <!-- stats -->
+    <section class="view" id="v-activity" hidden>
+    <div class="view-head"><button class="back" aria-label="Back">‹</button><h2>Notifications &amp; activity</h2></div>
     <section class="card">
       <h2>Who gets notifications</h2>
       <div class="stats">
@@ -194,6 +333,7 @@ ul.log b { color: var(--ivory); font-weight: 600; }
       <h2>Recent changes</h2>
       <ul class="log" id="log"></ul>
       <button id="b-signout">Sign out on this phone</button>
+    </section>
     </section>
   </div>
 </div>
@@ -211,7 +351,7 @@ const S = createSchedule({ config: C, table, adhan: window.adhan });
 const VERSES = window.DAILY_VERSES || [];
 const KEY = "masjid-admin-code";
 let code = ""; try { code = localStorage.getItem(KEY) || ""; } catch (e) {}
-let server = { override: null, reminder: null, announcement: null };
+let server = { override: null, reminder: null, announcement: null, jamaah: null };
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const say = (id, text, ok) => { $(id).textContent = text; $(id).className = "msg " + (ok ? "ok" : "err"); };
 const when = (d) => {
@@ -285,6 +425,8 @@ function renderStatus() {
     ? `Set by ${ov.by} at ${S.hm(new Date(ov.at))}${tail}`
     : `Following the timetable${tail}`;
   $("now-note").textContent = st.manual && ov.message ? `“${ov.message}”` : "";
+  $("t-status").className = "tile " + (st.open ? "open" : "closed");
+  $("ts-status").textContent = (st.open ? "Open" : "Closed") + (st.change ? (st.open ? ` · until ${when(st.change)}` : ` · opens ${when(st.change)}`) : "");
   $("b-auto").hidden = !st.manual;
   const nx = S.nextScheduleChange(n);
   $("u-tt").textContent = nx ? `Until timetable (${when(nx)})` : "Until timetable";
@@ -327,6 +469,80 @@ async function setStatus(mode) {
 $("b-open").addEventListener("click", () => setStatus("open"));
 $("b-close").addEventListener("click", () => setStatus("closed"));
 $("b-auto").addEventListener("click", () => setStatus("auto"));
+
+// ---------------- prayers at the masjid ----------------
+// S has no imam settings, so its iqamah times are the usual ones from config.js
+const JM = [["fajr", "Fajr"], ["dhuhr", "Dhuhr"], ["asr", "Asr"], ["maghrib", "Maghrib"], ["isha", "Isha"]];
+let jmDirty = false;
+$("jm-list").innerHTML = JM.map(([k, name]) => `
+  <div class="jm-row" id="jm-row-${k}">
+    <label class="check"><input type="checkbox" id="jm-on-${k}"><span>${name}<small id="jm-adhan-${k}"></small></span></label>
+    <label class="jm-iq" for="jm-iq-${k}">Iqamah<input type="time" id="jm-iq-${k}"><small id="jm-usual-${k}"></small></label>
+  </div>`).join("");
+function jmTimes() {
+  const d = S.day(S.ymdOf(new Date())); if (!d) return;
+  JM.forEach(([k]) => {
+    const p = d.list.find((x) => x.key === k);
+    $("jm-adhan-" + k).textContent = `adhan today ${S.hm(p.adhan)}`;
+    $("jm-usual-" + k).textContent = `usual ${S.hm(p.iqamah)}`;
+  });
+  const j = C.jumuah || {};
+  $("jm-friday").textContent = j.enabled ? `On Fridays Jumu'ah (khutbah ${j.khutbah}, iqamah ${j.iqamah}) is always shown in place of Dhuhr.` : "";
+}
+function jmRowState() {
+  JM.forEach(([k]) => {
+    const on = $("jm-on-" + k).checked;
+    $("jm-row-" + k).classList.toggle("on", on);
+    $("jm-iq-" + k).disabled = !on;
+  });
+}
+function jmFill() {
+  if (jmDirty) return;                       // don't overwrite what the imam is typing
+  const P = (server.jamaah && server.jamaah.prayers) || {};
+  JM.forEach(([k]) => { $("jm-on-" + k).checked = !!(P[k] && P[k].on); $("jm-iq-" + k).value = (P[k] && P[k].iqamah) || ""; });
+  jmRowState();
+}
+function jmSummary() {
+  const P = (server.jamaah && server.jamaah.prayers) || {};
+  const held = JM.filter(([k]) => P[k] && P[k].on).map(([k, name]) => name + (P[k].iqamah ? ` ${P[k].iqamah}` : ""));
+  $("ts-prayers").textContent = held.length ? held.join(" · ") : "None today";
+  const j = server.jamaah;
+  $("jm-current").textContent = j && j.by ? `Last changed by ${j.by} at ${when(new Date(j.at))}.` : "";
+}
+$("jm-list").addEventListener("input", () => { jmDirty = true; jmRowState(); });
+$("jm-list").addEventListener("change", () => { jmDirty = true; jmRowState(); });
+$("b-jm").addEventListener("click", async () => {
+  $("b-jm").disabled = true;
+  try {
+    const prayers = {};
+    JM.forEach(([k]) => (prayers[k] = { on: $("jm-on-" + k).checked, iqamah: $("jm-on-" + k).checked ? $("jm-iq-" + k).value : "" }));
+    const d = await api("admin/jamaah", { prayers });
+    server.jamaah = d.jamaah; jmDirty = false;
+    const n = Object.values(prayers).filter((p) => p.on).length;
+    say("jm-msg", n ? `Saved. The app now shows ${n} prayer${n === 1 ? "" : "s"} at the masjid.` : "Saved. The app shows “No prayers performed today at the Masjid”.", true);
+    jmFill(); jmSummary();
+  } catch (e) { say("jm-msg", e.message, false); }
+  $("b-jm").disabled = false;
+});
+
+// ---------------- home ⇄ windows ----------------
+const VIEWS = ["status", "prayers", "announce", "reminder", "activity"];
+let fromHome = false;
+function route() {
+  const v = location.hash.slice(1);
+  const on = VIEWS.includes(v) ? v : "";
+  $("home").hidden = !!on;
+  VIEWS.forEach((k) => ($("v-" + k).hidden = k !== on));
+  document.body.classList.toggle("in-view", !!on);
+  window.scrollTo(0, 0);
+}
+$("home").addEventListener("click", (e) => { if (e.target.closest("a.tile")) fromHome = true; });
+document.querySelectorAll(".back").forEach((b) => b.addEventListener("click", () => {
+  if (fromHome) { fromHome = false; history.back(); }      // the phone's back button works the same way
+  else { history.replaceState(null, "", location.pathname + location.search); route(); }
+}));
+window.addEventListener("hashchange", route);
+route();
 
 // ---------------- reminder of the day ----------------
 VERSES.forEach((v, i) => {
@@ -371,6 +587,7 @@ function renderCurrentReminder() {
   $("rem-current").textContent = r
     ? `Showing now: ${r.kind === "verse" ? r.source : "your own reminder"} · set by ${r.by}${r.until ? ` · until ${when(new Date(r.until))}` : " · until changed"}`
     : "Showing now: the automatic verse of the day.";
+  $("ts-rem").textContent = r ? (r.kind === "verse" ? r.source : "Your own reminder") : "Automatic";
 }
 $("b-rem").addEventListener("click", async () => {
   $("b-rem").disabled = true;
@@ -412,8 +629,10 @@ async function refresh() {
     const r = await fetch("api/state", { cache: "no-store" });
     const d = await r.json();
     if (r.status === 503) $("setup-banner").hidden = false;
-    server = { override: d.override || null, reminder: d.reminder || null, announcement: d.announcement || null };
+    server = { override: d.override || null, reminder: d.reminder || null, announcement: d.announcement || null, jamaah: d.jamaah || null };
     const a = server.announcement;
+    $("ts-ann").textContent = a ? "Banner is live" : "No banner";
+    jmFill(); jmSummary();
     if (!ANN.some((k) => document.activeElement === $("ann-" + k)))
       ANN.forEach((k) => ($("ann-" + k).value = a ? (a.en || a.sk || a.ar ? a[k] || "" : k === "en" ? a.text || "" : "") : ""));
   } catch (e) {}
@@ -421,6 +640,7 @@ async function refresh() {
   try {
     const s = await api("admin/stats");
     $("s-total").textContent = s.subscribers; $("s-status").textContent = s.status; $("s-adhan").textContent = s.adhan;
+    $("ts-act").textContent = `${s.subscribers} phone${s.subscribers === 1 ? "" : "s"} signed up for notifications`;
     const f = new Intl.DateTimeFormat("en-GB", { timeZone: S.TZ, weekday: "short", hour: "2-digit", minute: "2-digit" });
     $("log").innerHTML = s.log.map((l) => `<li><b>${esc(l.who)}</b> · ${esc(l.action)} · ${f.format(new Date(l.at))}</li>`).join("") || "<li>No changes yet.</li>";
   } catch (e) { if (e.status === 401) { $("panel").hidden = true; $("signin").hidden = false; } }
@@ -444,6 +664,7 @@ else {
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 
 renderReminderForm();
+jmTimes(); jmFill(); jmSummary();
 if (code) signIn(); else $("signin").hidden = false;
 setInterval(renderStatus, 15000);
 setInterval(() => { if (!$("panel").hidden && document.visibilityState === "visible") refresh(); }, 30000);

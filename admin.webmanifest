@@ -8,9 +8,9 @@
   "background_color": "#0a1f22",
   "theme_color": "#0a1f22",
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
-    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
+    { "src": "icons/imam-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/imam-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/imam-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/imam.svg", "sizes": "any", "type": "image/svg+xml" }
   ]
 }

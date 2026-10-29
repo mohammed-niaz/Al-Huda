@@ -289,6 +289,7 @@ body { padding-block: 12px; }
 .disc:empty { display: none; }
 td.t.big { font-size: 1.6rem; font-weight: 700; color: var(--brass-hi); }
 td.t.sm { font-size: 0.95rem; color: var(--muted); }
+tr.none td { padding: 28px 12px; text-align: center; color: var(--muted); font-size: 1.05rem; }
 .tbl-wrap { flex: 1 1 auto; overflow-x: auto; }
 .tbl-wrap table { height: 100%; }
 td { padding: 10px 10px; }
@@ -684,18 +685,23 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
     } else raw = calcTimes(ymd);
     if (!raw) return null;
     const friday = weekday(ymd) === 5 && C.jumuah && C.jumuah.enabled;
+    // the imam ticks which prayers are held at the masjid and may set their iqamah (admin.html)
+    const J = (SERVER.jamaah && SERVER.jamaah.prayers) || {};
     const list = PRAYERS.map((p) => {
-      let adhanT = raw[p.key], iq, name = p.name, ar = p.ar;
+      let adhanT = raw[p.key], iq, name = p.name, ar = p.ar, atMasjid;
+      const held = J[p.key] || {};
       if (p.key === "dhuhr" && friday) {
         name = "Jumu'ah"; ar = "الجمعة";
         adhanT = zoned(ymd, C.jumuah.khutbah);
         iq = zoned(ymd, C.jumuah.iqamah);
+        atMasjid = true;
       } else {
-        const rule = (C.iqamah && C.iqamah[p.key]) || { after: 10 };
+        const rule = held.on && held.iqamah ? { time: held.iqamah } : (C.iqamah && C.iqamah[p.key]) || { after: 10 };
         iq = rule.time ? zoned(ymd, rule.time) : addMin(adhanT, rule.after || 0);
         if (iq < adhanT) iq = adhanT;
+        atMasjid = !!held.on;
       }
-      return { key: p.key, name, ar, adhan: adhanT, iqamah: iq, start: raw[p.key], ymd };
+      return { key: p.key, name, ar, adhan: adhanT, iqamah: iq, start: raw[p.key], ymd, atMasjid };
     });
     return (dayCache[ymd] = { ymd, src, sunrise: raw.sunrise, list, friday });
   }
@@ -708,15 +714,16 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
   function stateAt(n) {
     const all = timeline(n);
     const jam = (C.jamaahMinutes || 10) * 60000;
-    const live = all.find((p) => p.adhan <= n && n < p.iqamah);
-    const inJamaah = all.find((p) => p.iqamah <= n && n < new Date(p.iqamah.getTime() + jam));
+    // the iqamah countdown and "jama'ah in progress" only for prayers held at the masjid
+    const live = all.find((p) => p.atMasjid && p.adhan <= n && n < p.iqamah);
+    const inJamaah = all.find((p) => p.atMasjid && p.iqamah <= n && n < new Date(p.iqamah.getTime() + jam));
     const next = all.find((p) => p.adhan > n);
     const prev = [...all].reverse().find((p) => p.adhan <= n);
     const nextIq = all.find((p) => p.iqamah > n);
     return { live, inJamaah, next, prev, nextIq };
   }
   // ---------- open / closed: the timetable in config.js + the imam's change from the server ----------
-  let SERVER = { override: null, announcement: null, reminder: null };
+  let SERVER = { override: null, announcement: null, reminder: null, jamaah: null };
   function openWindows(n) {
     const o = C.openStatus || {};
     const before = o.opensBeforeDhuhr ?? 20, after = o.closesAfterIsha ?? 30;
@@ -760,7 +767,12 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
       const r = await fetch("api/state", { cache: "no-store" });
       if (!r.ok || !(r.headers.get("content-type") || "").includes("json")) return;
       const d = await r.json();
-      SERVER = { override: d.override || null, announcement: d.announcement || null, reminder: d.reminder || null };
+      const jamaah = d.jamaah || null;
+      if (JSON.stringify(jamaah) !== JSON.stringify(SERVER.jamaah)) {   // prayers/iqamah changed: rebuild the days
+        Object.keys(dayCache).forEach((k) => delete dayCache[k]);
+        lastTableKey = "";
+      }
+      SERVER = { override: d.override || null, announcement: d.announcement || null, reminder: d.reminder || null, jamaah };
       renderAnnouncement(); renderVerse(now()); tick();
     } catch (e) { /* offline: keep showing the timetable */ }
   }
@@ -860,7 +872,8 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
     const label = (p, tag) => `<td class="p">${p.name}<span class="ar">${p.ar}</span>${tag}</td>`;
     if (masjid) {
       $("thead").innerHTML = `<tr><th>Prayer</th><th class="t">Adhan</th><th class="t">Iqamah</th></tr>`;
-      d.list.slice(1).forEach((p) => {
+      const held = d.list.filter((p) => p.atMasjid);
+      held.forEach((p) => {
         const isLive = st.live === p || st.inJamaah === p;
         const isNext = !isLive && st.next === p && !st.live;
         const done = !isLive && p.iqamah < n && !(st.inJamaah === p);
@@ -868,7 +881,8 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
         const tag = isLive ? `<span class="tag">${st.live === p ? "Iqamah soon" : "Now"}</span>` : isNext ? `<span class="tag">Next</span>` : "";
         rows.push(`<tr class="${cls}">${label(p, tag)}<td class="t sm">${hm(p.adhan)}</td><td class="t iq big">${hm(p.iqamah)}</td></tr>`);
       });
-      $("t-disc").textContent = "Note: these are the timings offered at the masjid (congregational prayers).";
+      if (!held.length) rows.push(`<tr class="none"><td colspan="3">No prayers performed today at the Masjid.</td></tr>`);
+      $("t-disc").textContent = held.length ? "Note: these are the timings offered at the masjid (congregational prayers)." : "";
     } else {
       $("thead").innerHTML = `<tr><th>Prayer</th><th class="t">Adhan</th></tr>`;
       d.list.forEach((p, i) => {
@@ -903,6 +917,7 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
     const nx = st.next, pv = st.prev;
     const live = st.live, jam = st.inJamaah;
     document.body.classList.toggle("iqamah-live", !!(live || jam));
+    $("h-iqamah").parentElement.hidden = false;
     if (live) {
       $("h-eyebrow").textContent = "Adhan called";
       $("h-name").textContent = live.name;
@@ -933,6 +948,7 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
       $("h-sub").textContent = nx.name === "Jumu'ah" ? "until khutbah" : "until adhan";
       $("h-adhan").textContent = hm(nx.adhan);
       $("h-iqamah").textContent = hm(nx.iqamah);
+      $("h-iqamah").parentElement.hidden = !nx.atMasjid;   // no iqamah chip for a prayer not held at the masjid
       const span = pv ? nx.adhan - pv.adhan : 6 * 3600000;
       const frac = Math.min(1, Math.max(0, 1 - (nx.adhan - n) / span));
       $("ring").style.strokeDashoffset = (RING * (1 - frac)).toFixed(1);
@@ -1048,9 +1064,9 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
     const N = C.notifications || {};
     const evs = [];
     for (const p of timeline(n)) {
-      evs.push({ id: "a" + p.ymd + p.key, at: p.adhan, kind: "adhan", title: `${p.name} — adhan`, body: `Iqamah at ${hm(p.iqamah)}. Come to the masjid.` });
+      evs.push({ id: "a" + p.ymd + p.key, at: p.adhan, kind: "adhan", title: `${p.name} — adhan`, body: p.atMasjid ? `Iqamah at ${hm(p.iqamah)}. Come to the masjid.` : `It is time for ${p.name}.` });
       if (N.reminderBeforeAdhan) evs.push({ id: "r" + p.ymd + p.key, at: addMin(p.adhan, -N.reminderBeforeAdhan), kind: "reminder", title: `${p.name} in ${N.reminderBeforeAdhan} minutes`, body: `Adhan ${hm(p.adhan)} · Iqamah ${hm(p.iqamah)}` });
-      if (N.iqamahAlert) { const lead = Math.min(1, (p.iqamah - p.adhan) / 120000); if (lead > 0 && p.iqamah - p.adhan > 90000) evs.push({ id: "i" + p.ymd + p.key, at: addMin(p.iqamah, -lead), kind: "iqamah", title: `${p.name} — iqamah in 1 minute`, body: "The jama'ah is about to stand." }); }
+      if (N.iqamahAlert && p.atMasjid) { const lead = Math.min(1, (p.iqamah - p.adhan) / 120000); if (lead > 0 && p.iqamah - p.adhan > 90000) evs.push({ id: "i" + p.ymd + p.key, at: addMin(p.iqamah, -lead), kind: "iqamah", title: `${p.name} — iqamah in 1 minute`, body: "The jama'ah is about to stand." }); }
     }
     for (const e of evs) {
       const d = n - e.at;

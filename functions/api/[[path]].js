@@ -5,7 +5,7 @@
 //           POST /api/subscribe     save a phone's notification address + topics
 //           POST /api/unsubscribe
 // Imam:     GET  /api/admin/me | /api/admin/stats
-//           POST /api/admin/status | /api/admin/reminder | /api/admin/announcement
+//           POST /api/admin/status | /api/admin/reminder | /api/admin/announcement | /api/admin/jamaah
 //
 // Notifications are not sent from here: a row goes into the `outbox` table and the
 // background worker (server/worker.js) sends it within seconds (or within a minute at most).
@@ -13,7 +13,9 @@
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
 
-const KEYS = { override: "override", announcement: "announcement", reminder: "reminder" };
+const KEYS = { override: "override", announcement: "announcement", reminder: "reminder", jamaah: "jamaah" };
+const JAMAAH_PRAYERS = ["fajr", "dhuhr", "asr", "maghrib", "isha"];
+const PRAYER_NAMES = { fajr: "Fajr", dhuhr: "Dhuhr", asr: "Asr", maghrib: "Maghrib", isha: "Isha" };
 
 async function kvGet(db, key) {
   const row = await db.prepare("SELECT value FROM kv WHERE key = ?").bind(key).first();
@@ -78,13 +80,14 @@ export async function onRequest({ request, env, params }) {
   try {
     // ---------------- public ----------------
     if (path === "/state" && method === "GET") {
-      const [override, announcement, reminder] = await Promise.all([
-        kvGet(env.DB, KEYS.override), kvGet(env.DB, KEYS.announcement), kvGet(env.DB, KEYS.reminder)
+      const [override, announcement, reminder, jamaah] = await Promise.all([
+        kvGet(env.DB, KEYS.override), kvGet(env.DB, KEYS.announcement), kvGet(env.DB, KEYS.reminder), kvGet(env.DB, KEYS.jamaah)
       ]);
       return json({
         override: expired(override) ? null : override,
         announcement,
         reminder: expired(reminder) ? null : reminder,
+        jamaah,
         serverTime: new Date().toISOString()
       });
     }
@@ -180,6 +183,22 @@ export async function onRequest({ request, env, params }) {
           }, { ttl: 6 * 3600, urgency: "normal" });
         }
         return json({ ok: true, reminder, notified });
+      }
+
+      // which prayers are held at the masjid, each with an optional fixed iqamah ("HH:MM"; empty = config.js rule)
+      if (path === "/admin/jamaah" && method === "POST") {
+        const b = await request.json().catch(() => ({}));
+        const prayers = {};
+        for (const k of JAMAAH_PRAYERS) {
+          const p = (b.prayers || {})[k] || {};
+          const iqamah = /^([01]\d|2[0-3]):[0-5]\d$/.test(p.iqamah || "") ? p.iqamah : "";
+          prayers[k] = { on: !!p.on, iqamah };
+        }
+        const jamaah = { prayers, by: who, at: new Date().toISOString() };
+        await kvSet(env.DB, KEYS.jamaah, jamaah);
+        const held = JAMAAH_PRAYERS.filter((k) => prayers[k].on).map((k) => PRAYER_NAMES[k] + (prayers[k].iqamah ? ` ${prayers[k].iqamah}` : ""));
+        await logAction(env, who, held.length ? `Prayers at the masjid: ${held.join(", ")}` : "No prayers at the masjid");
+        return json({ ok: true, jamaah });
       }
 
       if (path === "/admin/announcement" && method === "POST") {
