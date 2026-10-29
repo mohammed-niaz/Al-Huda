@@ -29,7 +29,7 @@ window.MASJID_CONFIG = {
   //   { time: "HH:MM" }   → iqamah at a fixed clock time
   iqamah: {
     fajr:    { after: 2 },
-    dhuhr:   { after: 10 },
+    dhuhr:   { after: 60 },
     asr:     { after: 10 },
     maghrib: { after: 5 },
     isha:    { after: 10 }
@@ -51,7 +51,8 @@ window.MASJID_CONFIG = {
   //       "closed" → always show CLOSED (e.g. renovation)
   openStatus: {
     mode: "auto",
-       opensBeforeDhuhr: 20,              // doors open N min before Dhuhr adhan
+    opensAt: "12:00",                  // doors open at this time every day (set "" to use opensBeforeDhuhr instead)
+    opensBeforeDhuhr: 20,              // used only when opensAt is empty: N min before Dhuhr adhan
     closesAfterIsha: 10,               // doors close N min after Isha iqamah
     // Extra open hours, days: 0=Sun … 5=Fri, 6=Sat
     extraHours: [

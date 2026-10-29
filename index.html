@@ -53,13 +53,13 @@ body {
   position: relative;
   overflow-x: hidden;
 }
-/* 8-point star lattice, the pattern of a masjid ceiling */
+/* the logo's pointed arch, in staggered rows */
 body::after {
   content: "";
   position: fixed; inset: 0; z-index: -1; pointer-events: none;
   background:
     radial-gradient(ellipse 80% 60% at 50% -10%, rgba(217,170,88,0.16), transparent 70%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 72 72'%3E%3Cg fill='none' stroke='%23d9aa58' stroke-opacity='0.09' stroke-width='1'%3E%3Crect x='21' y='21' width='30' height='30'/%3E%3Crect x='21' y='21' width='30' height='30' transform='rotate(45 36 36)'/%3E%3Cpath d='M0 36h15M57 36h15M36 0v15M36 57v15'/%3E%3C/g%3E%3C/svg%3E");
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='150' viewBox='0 0 64 150'%3E%3Cg fill='none' stroke='%23d9aa58' stroke-opacity='0.07' stroke-width='1'%3E%3Cpath d='M8.54 70.56V33.84C8.54 20.92 20.1 13.1 32 8C43.9 13.1 55.46 20.92 55.46 33.84V70.56'/%3E%3Cpath d='M-23.46 145.56V108.84C-23.46 95.92 -11.9 88.1 0 83C11.9 88.1 23.46 95.92 23.46 108.84V145.56'/%3E%3Cpath d='M40.54 145.56V108.84C40.54 95.92 52.1 88.1 64 83C75.9 88.1 87.46 95.92 87.46 108.84V145.56'/%3E%3C/g%3E%3C/svg%3E");
 }
 .wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 20px; }
 
@@ -77,22 +77,21 @@ header.top {
 .top-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .dates { text-align: right; font-size: 0.85rem; color: var(--muted); line-height: 1.35; }
 .dates b { color: var(--ivory); font-weight: 600; }
+/* open/closed: a calm line under the chips; the hero's arch is the door and lights up when open */
 .status {
   position: relative; z-index: 1;
-  display: inline-flex; align-items: center; gap: 9px;
-  margin-bottom: 18px; padding: 6px 16px 6px 11px; border-radius: 999px;
-  font-weight: 700; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase;
-  border: 1px solid rgba(255,255,255,0.08);
+  display: inline-flex; align-items: center; gap: 8px;
+  margin-top: 16px; font-weight: 600; font-size: 1.05rem;
 }
-.status .door { flex: none; overflow: visible; }
-.status.open { color: var(--open); background: linear-gradient(rgba(99,211,148,0.08), rgba(99,211,148,0.08)), #12302d; border-color: rgba(99,211,148,0.35); }
+.status .door { flex: none; overflow: visible; width: 22px; height: 22px; }
+.status small { font-size: inherit; font-weight: 500; color: var(--muted); }
+.status.open { color: var(--open); }
 .status.open .lit { animation: doorglow 2.6s ease-in-out infinite; }
 .status.open .door { filter: drop-shadow(0 0 5px rgba(99,211,148,0.7)); }
-.status.closed { color: var(--closed); background: linear-gradient(rgba(231,118,106,0.06), rgba(231,118,106,0.06)), #12302d; border-color: rgba(231,118,106,0.3); }
+.status.closed { color: var(--brass); }
 .status.closed .lit { opacity: 0.18; }
-.status small { font-weight: 500; letter-spacing: 0.02em; text-transform: none; opacity: 0.85; }
 @keyframes doorglow { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
-@media (prefers-reduced-motion: reduce) { .status.open .lit { animation: none; } }
+@keyframes archglow { 50% { filter: drop-shadow(0 0 3px rgba(99,211,148,0.35)); } }
 
 .announce {
   border: 1px solid var(--line); background: rgba(217,170,88,0.08); color: var(--brass-hi);
@@ -123,9 +122,15 @@ header.top {
   border: 1px solid rgba(217,170,88,0.18); border-bottom: none;
   border-radius: 999px 999px 0 0 / 260px 260px 0 0;
   pointer-events: none;
+  transition: border-color 1s ease, filter 1s ease;
+}
+.hero.is-open::before {
+  border-color: rgba(99,211,148,0.6); border-width: 1.5px;
+  filter: drop-shadow(0 0 8px rgba(99,211,148,0.55));
+  animation: archglow 3.2s ease-in-out infinite;
 }
 .eyebrow {
-  font-size: 0.75rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--brass); font-weight: 700;
+  font-size: 1rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--brass); font-weight: 700;
 }
 .hero .name {
   font-family: var(--font-display); font-size: clamp(2.6rem, 8vw, 4.2rem); font-weight: 600;
@@ -141,15 +146,15 @@ header.top {
   font-variant-numeric: tabular-nums; font-weight: 300; font-size: clamp(2.6rem, 11vw, 3.6rem);
   letter-spacing: -0.02em; line-height: 1;
 }
-.ring-center .sub { color: var(--muted); font-size: 0.85rem; }
+.ring-center .sub { color: var(--muted); font-size: 1.2rem; }
 .hero-times { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
 .chip {
   display: inline-flex; gap: 8px; align-items: baseline; padding: 8px 14px; border-radius: 12px;
-  background: rgba(241,233,214,0.05); border: 1px solid rgba(241,233,214,0.08); font-size: 0.9rem;
+  background: rgba(241,233,214,0.05); border: 1px solid rgba(241,233,214,0.08); font-size: 1.05rem;
 }
-.chip span { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; }
-.chip b { font-variant-numeric: tabular-nums; font-size: 1.05rem; }
-.nudge { margin: 16px auto 0; max-width: 34ch; color: var(--muted); font-size: 0.95rem; text-wrap: balance; }
+.chip span { color: var(--muted); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.1em; }
+.chip b { font-variant-numeric: tabular-nums; font-size: 1.3rem; }
+.nudge { margin: 16px auto 0; max-width: 34ch; color: var(--muted); font-size: 1.2rem; text-wrap: balance; }
 
 /* ---------- timetable ---------- */
 .card {
@@ -244,15 +249,22 @@ body { padding-block: 12px; }
 .top-right { gap: 6px; flex-wrap: nowrap; }
 .screen-btn { color: var(--muted); }
 .hero { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 22px 20px 20px; }
-.status { margin-bottom: 12px; }
+.status { margin-top: 12px; }
 .hbar { display: none; width: min(260px, 80%); height: 4px; border-radius: 4px; background: rgba(241,233,214,0.08); margin: 10px auto 4px; overflow: hidden; }
 .hbar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--brass), var(--brass-hi)); transition: width 1s linear; }
 .nudge { margin-top: 12px; }
 /* digits scale with the ring itself, so they always sit inside it */
 .ring-box { container-type: size; }
 .ring-box .countdown { font-size: min(15cqw, 15cqh); }
-.ring-box .sub { font-size: max(0.75rem, min(4.2cqw, 4.2cqh)); }
+.ring-box .sub { font-size: max(1rem, min(6.5cqw, 6.5cqh)); }
 .tcard { display: flex; flex-direction: column; }
+.tabs { display: flex; gap: 4px; padding: 4px; margin-bottom: 12px; border-radius: 14px; background: rgba(241,233,214,0.05); border: 1px solid rgba(241,233,214,0.08); }
+.tabs button { flex: 1; padding: 9px 10px; border: none; background: none; color: var(--muted); font-size: 0.95rem; }
+.tabs button[aria-selected="true"] { background: var(--brass); color: var(--ground); }
+.disc { margin-top: 12px; font-size: 0.85rem; color: var(--brass-hi); font-weight: 500; }
+.disc:empty { display: none; }
+td.t.big { font-size: 1.6rem; font-weight: 700; color: var(--brass-hi); }
+td.t.sm { font-size: 0.95rem; color: var(--muted); }
 .tbl-wrap { flex: 1 1 auto; overflow-x: auto; }
 .tbl-wrap table { height: 100%; }
 td { padding: 10px 10px; }
@@ -305,7 +317,10 @@ tr.sunrise td { padding-block: 4px; font-size: 0.82rem; }
   .bell { width: 36px; height: 36px; }
   .hero { padding: 14px 14px 14px; border-radius: 22px; }
   .hero::before { display: none; }
-  .status { margin-bottom: 8px; padding: 4px 12px 4px 9px; font-size: 0.7rem; }
+  .status { margin-top: 8px; font-size: 0.95rem; }
+  .status .door { width: 18px; height: 18px; }
+  .hero { transition: border-color 1s ease, box-shadow 1s ease; }
+  .hero.is-open { border-color: rgba(99,211,148,0.5); box-shadow: 0 0 22px -8px rgba(99,211,148,0.55); }
   .hero .name { font-size: 2.1rem; margin: 4px 0 0; }
   .hero .arabic-name { display: none; }
   .alert-banner { flex-wrap: nowrap; justify-content: flex-start; gap: 8px; padding: 6px 8px 6px 12px; font-size: 0.82rem; }
@@ -315,10 +330,10 @@ tr.sunrise td { padding-block: 4px; font-size: 0.82rem; }
   .ring-box svg { display: none; }
   .ring-center { position: static; gap: 0; }
   .ring-box .countdown { font-size: 2.8rem; }
-  .ring-box .sub { font-size: 0.85rem; }
+  .ring-box .sub { font-size: 1.15rem; }
   .hbar { display: block; }
   .hero-times { margin-top: 6px; gap: 8px; }
-  .chip { padding: 5px 11px; font-size: 0.85rem; }
+  .chip { padding: 5px 11px; font-size: 1rem; }
   .nudge { display: none; }
   .card { padding: 12px 14px; }
   .card h2 { margin-bottom: 6px; font-size: 1rem; }
@@ -330,6 +345,9 @@ tr.sunrise td { padding-block: 4px; font-size: 0.82rem; }
   td.p .ar { font-size: 0.9rem; margin-left: 6px; }
   .tag { margin-left: 6px; }
   td.t { font-size: 1rem; }
+  td.t.big { font-size: 1.3rem; }
+  .tabs { margin-bottom: 6px; }
+  .tabs button { padding: 6px 8px; font-size: 0.88rem; }
   .verse-strip { padding: 9px 12px; gap: 8px; }
   .vs-ref { display: none; }
 }
@@ -338,6 +356,25 @@ tr.sunrise td { padding-block: 4px; font-size: 0.82rem; }
 body.screen .wrap { max-width: none; }
 body.screen .bell:not(.screen-btn), body.screen .verse-strip .vs-more { display: none; }
 body.screen .screen-btn { opacity: 0.35; }
+
+/* opening animation: the arch is drawn, then the two worshippers walk in and stand together */
+.splash {
+  position: fixed; inset: 0; z-index: 100; display: grid; place-content: center; justify-items: center; gap: 18px;
+  background: radial-gradient(ellipse 70% 50% at 50% 40%, rgba(217,170,88,0.14), transparent 70%), var(--ground);
+  transition: opacity .6s ease, visibility .6s;
+}
+.splash.done { opacity: 0; visibility: hidden; }
+.splash svg { width: min(200px, 48vw); height: auto; overflow: visible; }
+.splash .s-arch { stroke-dasharray: 1; stroke-dashoffset: 1; animation: s-draw 1s cubic-bezier(.6,0,.3,1) .15s forwards; }
+.splash .s-left, .splash .s-right { opacity: 0; animation: s-join .9s cubic-bezier(.2,.8,.2,1) 1.05s forwards; }
+.splash .s-left { transform: translateX(-110px); }
+.splash .s-right { transform: translateX(110px); }
+.splash .s-base { transform-box: fill-box; transform-origin: center; transform: scaleX(0); animation: s-base .5s ease-out 1.8s forwards; }
+.splash .s-name { font-family: var(--font-display); font-size: 1.6rem; font-weight: 600; color: var(--ivory); opacity: 0; animation: s-fade .6s ease 2s forwards; }
+@keyframes s-draw { to { stroke-dashoffset: 0; } }
+@keyframes s-join { to { opacity: 1; transform: none; } }
+@keyframes s-base { to { transform: scaleX(1); } }
+@keyframes s-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
 /* toast */
 .toast {
@@ -361,6 +398,35 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
 </style>
 </head>
 <body>
+<div class="splash" id="splash" aria-hidden="true">
+  <svg viewBox="100 48 312 392">
+    <path class="s-arch" pathLength="1" d="M118,430 L118,214 C118,138 186,92 256,62 C326,92 394,138 394,214 L394,430" fill="none" stroke="#d9aa58" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+    <g class="s-right">
+      <path d="M250,402 L257,262 C257,238 269,224 289,221 L313,221 C333,224 345,238 345,262 L352,402 Z" fill="#f1e9d6" stroke="#0a1f22" stroke-width="7" stroke-linejoin="round"/>
+      <circle cx="301" cy="178" r="30" fill="#f1e9d6"/>
+      <path d="M272,171 C272,151 285,145 301,145 C317,145 330,151 330,171 Z" fill="#d9aa58"/>
+    </g>
+    <g class="s-left">
+      <path d="M160,402 L167,262 C167,238 179,224 199,221 L223,221 C243,224 255,238 255,262 L262,402 Z" fill="#f1e9d6" stroke="#0a1f22" stroke-width="7" stroke-linejoin="round"/>
+      <circle cx="211" cy="178" r="30" fill="#f1e9d6"/>
+      <path d="M182,171 C182,151 195,145 211,145 C227,145 240,151 240,171 Z" fill="#d9aa58"/>
+    </g>
+    <path class="s-base" d="M150,416 L362,416" stroke="#d9aa58" stroke-width="12" stroke-linecap="round"/>
+  </svg>
+  <div class="s-name">Mešita Al-huda</div>
+</div>
+<script>
+// Play once per visit (the TV's 6-hourly reload skips it); tap to skip; no motion → no splash.
+(() => {
+  const s = document.getElementById("splash");
+  let seen = false;
+  try { seen = sessionStorage.getItem("masjid-splash") === "1"; sessionStorage.setItem("masjid-splash", "1"); } catch (e) {}
+  if (seen || matchMedia("(prefers-reduced-motion: reduce)").matches) { s.remove(); return; }
+  const hide = () => { s.classList.add("done"); setTimeout(() => s.remove(), 700); };
+  s.addEventListener("click", hide);
+  setTimeout(hide, 3000);
+})();
+</script>
 <div class="wrap">
   <header class="top">
     <div class="brand">
@@ -424,13 +490,6 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
 
   <div class="grid">
       <section class="hero" aria-live="polite">
-        <div id="status" class="status closed">
-          <svg class="door" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
-            <path class="frame" d="M4.5 21.5V10a7.5 7.5 0 0 1 15 0v11.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
-            <path class="lit" d="M8 21.5V11a4 4 0 0 1 8 0v10.5z" fill="currentColor"/>
-          </svg>
-          <span id="status-text">Closed</span>
-        </div>
         <div class="eyebrow" id="h-eyebrow">Next prayer</div>
         <div class="name" id="h-name">—</div>
         <div class="arabic-name" id="h-ar"></div>
@@ -449,17 +508,28 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
           <div class="chip"><span>Adhan</span><b id="h-adhan">--:--</b></div>
           <div class="chip"><span>Iqamah</span><b id="h-iqamah">--:--</b></div>
         </div>
+        <div id="status" class="status closed">
+          <svg class="door" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+            <path class="frame" d="M4.5 21.5V10a7.5 7.5 0 0 1 15 0v11.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+            <path class="lit" d="M8 21.5V11a4 4 0 0 1 8 0v10.5z" fill="currentColor"/>
+          </svg>
+          <span id="status-text">Masjid closed</span>
+        </div>
         <p class="nudge" id="h-nudge"></p>
       </section>
 
       <section class="card tcard">
-        <h2>Today's prayers <small id="t-src">IslamicFinder · Muslim World League</small></h2>
+        <div class="tabs" role="tablist">
+          <button role="tab" id="tab-masjid" data-tab="masjid" aria-selected="true">At the Masjid</button>
+          <button role="tab" id="tab-times" data-tab="times" aria-selected="false">Prayer Times</button>
+        </div>
         <div class="tbl-wrap">
           <table>
-            <thead><tr><th>Prayer</th><th class="t">Adhan</th><th class="t">Iqamah</th></tr></thead>
+            <thead id="thead"></thead>
             <tbody id="tbody"></tbody>
           </table>
         </div>
+        <div class="disc" id="t-disc"></div>
         <div class="source" id="t-note"></div>
       </section>
   </div>
@@ -582,7 +652,7 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
         iq = rule.time ? zoned(ymd, rule.time) : addMin(adhanT, rule.after || 0);
         if (iq < adhanT) iq = adhanT;
       }
-      return { key: p.key, name, ar, adhan: adhanT, iqamah: iq, ymd };
+      return { key: p.key, name, ar, adhan: adhanT, iqamah: iq, start: raw[p.key], ymd };
     });
     return (dayCache[ymd] = { ymd, src, sunrise: raw.sunrise, list, friday });
   }
@@ -611,7 +681,7 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
   const windows = [addDays(today, -1), today, addDays(today, 1)].map((ymd) => {
     const d = day(ymd); if (!d) return null;
     const dh = d.list.find((p) => p.key === "dhuhr"), is = d.list.find((p) => p.key === "isha");
-    return { from: addMin(dh.adhan, -before), to: addMin(is.iqamah, after) };
+    return { from: o.opensAt ? zoned(ymd, o.opensAt) : addMin(dh.adhan, -before), to: addMin(is.iqamah, after) };
   }).filter(Boolean);
   const cur = windows.find((w) => n >= w.from && n < w.to);
   if (cur) return { open: true, why: `until ${hm(cur.to)}`, until: cur.to };
@@ -622,7 +692,7 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
     }
   }
   const nx = windows.find((w) => w.from > n);
-  return { open: false, why: o.closedMessage || (nx ? `opens ${hm(nx.from)}` : "") };
+  return { open: false, why: o.closedMessage || (nx ? `opens at ${hm(nx.from)}` : "") };
 }
 
   // ---------- static content ----------
@@ -662,18 +732,38 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
     $("vs-ar").textContent = v.arabic;
     $("vs-ref").textContent = `${v.surahEn} ${v.ref}`;
   }
-  function renderTable(n, st) {
+  // "At the Masjid": Dhuhr to Isha, iqamah first. "Prayer Times": all five with start and end of each window.
+  function renderTable(n, st, tab) {
     const d = day(ymdOf(n)); if (!d) return;
+    const masjid = tab === "masjid";
+    $("tab-masjid").setAttribute("aria-selected", masjid);
+    $("tab-times").setAttribute("aria-selected", !masjid);
     const rows = [];
-    d.list.forEach((p, i) => {
-      if (i === 1) rows.push(`<tr class="sunrise"><td>Sunrise <span class="ar" style="font-family:var(--font-quran)">الشروق</span></td><td class="t">${hm(d.sunrise)}</td><td class="t">—</td></tr>`);
-      const isLive = st.live === p || st.inJamaah === p;
-      const isNext = !isLive && st.next === p && !st.live;
-      const done = !isLive && p.iqamah < n && !(st.inJamaah === p);
-      const cls = isLive ? "live" : isNext ? "next" : done ? "done" : "";
-      const tag = isLive ? `<span class="tag">${st.live === p ? "Iqamah soon" : "Now"}</span>` : isNext ? `<span class="tag">Next</span>` : "";
-      rows.push(`<tr class="${cls}"><td class="p">${p.name}<span class="ar">${p.ar}</span>${tag}</td><td class="t">${hm(p.adhan)}</td><td class="t iq">${hm(p.iqamah)}</td></tr>`);
-    });
+    const label = (p, tag) => `<td class="p">${p.name}<span class="ar">${p.ar}</span>${tag}</td>`;
+    if (masjid) {
+      $("thead").innerHTML = `<tr><th>Prayer</th><th class="t">Adhan</th><th class="t">Iqamah</th></tr>`;
+      d.list.slice(1).forEach((p) => {
+        const isLive = st.live === p || st.inJamaah === p;
+        const isNext = !isLive && st.next === p && !st.live;
+        const done = !isLive && p.iqamah < n && !(st.inJamaah === p);
+        const cls = isLive ? "live" : isNext ? "next" : done ? "done" : "";
+        const tag = isLive ? `<span class="tag">${st.live === p ? "Iqamah soon" : "Now"}</span>` : isNext ? `<span class="tag">Next</span>` : "";
+        rows.push(`<tr class="${cls}">${label(p, tag)}<td class="t sm">${hm(p.adhan)}</td><td class="t iq big">${hm(p.iqamah)}</td></tr>`);
+      });
+      $("t-disc").textContent = "Note: these are the timings offered at the masjid (congregational prayers).";
+    } else {
+      $("thead").innerHTML = `<tr><th>Prayer</th><th class="t">Adhan</th></tr>`;
+      d.list.forEach((p, i) => {
+        if (i === 1) rows.push(`<tr class="sunrise"><td>Sunrise <span class="ar" style="font-family:var(--font-quran)">الشروق</span></td><td class="t">${hm(d.sunrise)}</td></tr>`);
+        const isLive = st.live === p || st.inJamaah === p;
+        const isNext = !isLive && st.next === p && !st.live;
+        const done = !isLive && p.iqamah < n && !(st.inJamaah === p);
+        const cls = isLive ? "live" : isNext ? "next" : done ? "done" : "";
+        const tag = isLive ? `<span class="tag">${st.live === p ? "Iqamah soon" : "Now"}</span>` : isNext ? `<span class="tag">Next</span>` : "";
+        rows.push(`<tr class="${cls}">${label(p, tag)}<td class="t iq big">${hm(p.adhan)}</td></tr>`);
+      });
+      $("t-disc").textContent = "";
+    }
     $("tbody").innerHTML = rows.join("");
     $("t-note").innerHTML = d.src === "islamicfinder"
       ? `Adhan times from <a href="${TABLE.source}" target="_blank" rel="noopener">IslamicFinder</a> for Košice.${d.friday ? " Friday: Jumu'ah replaces Dhuhr." : ""}`
@@ -682,7 +772,9 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
 
   // ---------- live render ----------
   const RING = 565.49;
-  let lastYmd = "", lastTableKey = "";
+  let lastYmd = "", lastTableKey = "", userTab = "";
+  // "At the Masjid" is the default tab until someone picks another
+  document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => { userTab = b.dataset.tab; tick(); }));
   function tick() {
     const n = now();
     const ymd = ymdOf(n);
@@ -736,11 +828,13 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
     // open / closed
     const os = openState(n);
     $("status").className = "status " + (os.open ? "open" : "closed");
+    document.querySelector(".hero").classList.toggle("is-open", os.open);
     $("status-text").innerHTML = (os.open ? "Masjid open" : "Masjid closed") + (os.why ? ` <small>· ${os.why}</small>` : "");
 
     // table (re-render only when state changes)
-    const key = ymd + (live && live.key) + (st.inJamaah && st.inJamaah.key) + (nx && nx.key + nx.ymd) + Math.floor(n / 60000);
-    if (key !== lastTableKey) { lastTableKey = key; renderTable(n, st); }
+    const tab = userTab || "masjid";
+    const key = tab + ymd + (live && live.key) + (st.inJamaah && st.inJamaah.key) + (nx && nx.key + nx.ymd) + Math.floor(n / 60000);
+    if (key !== lastTableKey) { lastTableKey = key; renderTable(n, st, tab); }
 
     checkAlerts(n);
   }
