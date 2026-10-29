@@ -1,0 +1,37 @@
+name: Set up server
+# Run once by hand (Actions → Set up server → Run workflow). It also runs by itself
+# when the server code changes, and you can re-run it any time, e.g. after
+# changing the ADMIN_CODES secret to add or remove an imam.
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths: ["server/**", "lib/**", "scripts/setup-server.mjs"]
+permissions:
+  contents: write
+concurrency:
+  group: server-setup
+  cancel-in-progress: false
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      ADMIN_CODES: ${{ secrets.ADMIN_CODES }}
+      PAGES_PROJECT: mesita-alhuda
+      SITE_URL: https://mesita-alhuda.pages.dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Install
+        run: npm install --prefix server --no-audit --no-fund
+      - name: Set up database, keys, codes and the notification worker
+        run: node scripts/setup-server.mjs
+      - name: Connect the Pages site (commit wrangler.toml if it changed)
+        run: |
+          git config user.name "setup-bot"
+          git config user.email "setup-bot@users.noreply.github.com"
+          git add wrangler.toml
+          git diff --cached --quiet || (git commit -m "Connect the site to the server (wrangler.toml)" && git push)
