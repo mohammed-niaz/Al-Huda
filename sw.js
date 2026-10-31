@@ -49,8 +49,13 @@ self.addEventListener("push", (e) => {
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
   const target = new URL((e.notification.data && e.notification.data.url) || "./", self.registration.scope).href;
+  // open the right page: the app, or Imam controls for account alerts
+  const page = (u) => new URL(u).pathname.replace(/\/index\.html$/, "/");
   e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
-    for (const c of list) if (c.url.startsWith(self.registration.scope) && "focus" in c) return c.focus();
+    for (const c of list) {
+      if (page(c.url) !== page(target) || !("focus" in c)) continue;
+      return c.focus().then((w) => (w && target !== c.url && "navigate" in w ? w.navigate(target) : w)).catch(() => c.focus());
+    }
     return self.clients.openWindow(target);
   }));
 });

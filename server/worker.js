@@ -73,8 +73,11 @@ async function drainOutbox(env) {
   for (const row of results) {
     const claim = await env.DB.prepare("UPDATE outbox SET done = 1 WHERE id = ? AND done = 0").bind(row.id).run();
     if (!claim.meta || claim.meta.changes !== 1) continue;      // another run already took it
-    const where = row.topic === "all" ? "(adhan = 1 OR status = 1)" : row.topic === "adhan" ? "adhan = 1" : "status = 1";
-    const { results: subs } = await env.DB.prepare(`SELECT endpoint, p256dh, auth FROM subs WHERE ${where}`).all();
+    // "owner": account alerts (new request, blocked device) go only to the imam's phones
+    const sql = row.topic === "owner"
+      ? "SELECT a.endpoint, a.p256dh, a.auth FROM admin_subs a JOIN users u ON u.id = a.user_id WHERE u.role = 'owner'"
+      : `SELECT endpoint, p256dh, auth FROM subs WHERE ${row.topic === "all" ? "(adhan = 1 OR status = 1)" : row.topic === "adhan" ? "adhan = 1" : row.topic === "status" ? "status = 1" : "0"}`;
+    const { results: subs } = await env.DB.prepare(sql).all();
     const payload = JSON.parse(row.payload), opts = JSON.parse(row.opts || "{}");
     const msgs = [];
     for (let i = 0; i < subs.length; i += BATCH) {
@@ -97,7 +100,10 @@ async function deliver(env, { payload, opts, subs }) {
       if (status === 404 || status === 410) gone.push(s.endpoint);   // phone uninstalled / turned alerts off
     } catch (e) { /* one bad address must not stop the others */ }
   }));
-  if (gone.length) await env.DB.batch(gone.map((ep) => env.DB.prepare("DELETE FROM subs WHERE endpoint = ?").bind(ep)));
+  if (gone.length) await env.DB.batch(gone.flatMap((ep) => [
+    env.DB.prepare("DELETE FROM subs WHERE endpoint = ?").bind(ep),
+    env.DB.prepare("DELETE FROM admin_subs WHERE endpoint = ?").bind(ep)
+  ]));
 }
 
 async function tidy(env, minute) {
@@ -107,7 +113,9 @@ async function tidy(env, minute) {
   await env.DB.batch([
     env.DB.prepare("DELETE FROM outbox WHERE done = 1 AND created < ?").bind(cutoff),
     env.DB.prepare("DELETE FROM log WHERE id NOT IN (SELECT id FROM log ORDER BY id DESC LIMIT 300)"),
-    env.DB.prepare("DELETE FROM fails WHERE since < ?").bind(minute - 86400000)
+    env.DB.prepare("DELETE FROM fails WHERE since < ?").bind(minute - 86400000),
+    env.DB.prepare("DELETE FROM sessions WHERE expires < ?").bind(minute),
+    env.DB.prepare("DELETE FROM alerts WHERE done = 1 AND id NOT IN (SELECT id FROM alerts ORDER BY id DESC LIMIT 200)")
   ]);
 }
 

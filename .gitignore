@@ -2,4 +2,5 @@ node_modules/
 .wrangler/
 server/wrangler.toml
 server/.admins.sql
+server/.account.sql
 server/.dev.vars
