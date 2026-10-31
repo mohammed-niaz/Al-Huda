@@ -33,13 +33,14 @@ async function sha256hex(text) {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-// Queue a notification for everyone who chose this topic ("status" or "adhan")
+// Queue a notification for everyone who chose this topic ("status", "adhan", or "all" = either one)
+const topicWhere = (topic) => (topic === "all" ? "(adhan = 1 OR status = 1)" : topic === "adhan" ? "adhan = 1" : "status = 1");
 async function broadcast(env, topic, payload, opts = {}) {
   const id = `${topic}-${Date.now()}-${crypto.getRandomValues(new Uint32Array(1))[0].toString(36)}`;
   await env.DB.prepare("INSERT INTO outbox (id, topic, payload, opts, created, done) VALUES (?, ?, ?, ?, ?, 0)")
     .bind(id, topic, JSON.stringify(payload), JSON.stringify(opts), new Date().toISOString()).run();
   if (env.PUSHQ) { try { await env.PUSHQ.send({ type: "kick" }); } catch (e) { /* the every-minute job will send it */ } }
-  const r = await env.DB.prepare(`SELECT COUNT(*) AS n FROM subs WHERE ${topic === "adhan" ? "adhan" : "status"} = 1`).first();
+  const r = await env.DB.prepare(`SELECT COUNT(*) AS n FROM subs WHERE ${topicWhere(topic)}`).first();
   return r ? r.n : 0;
 }
 
@@ -145,10 +146,12 @@ export async function onRequest({ request, env, params }) {
           return json({ ok: true, override: null, notified });
         }
         const until = isoOrNull(b.until);
-        const override = { mode, message, by: who, at: new Date().toISOString(), until };
+        // `from` (open only): the imam set the opening time; the masjid stays closed until then. Never notified.
+        const from = mode === "open" ? isoOrNull(b.from) : null;
+        const override = { mode, message, by: who, at: new Date().toISOString(), until, ...(from ? { from } : {}) };
         await kvSet(env.DB, KEYS.override, override);
-        await logAction(env, who, `${mode === "open" ? "Opened" : "Closed"} the masjid${message ? `: ${message}` : ""}`);
-        if (b.notify) {
+        await logAction(env, who, from ? `Set the opening time: ${clip(b.fromLabel, 20) || from}` : `${mode === "open" ? "Opened" : "Closed"} the masjid${message ? `: ${message}` : ""}`);
+        if (b.notify && !from) {
           notified = await broadcast(env, "status", {
             title: clip(b.title, 80) || (mode === "open" ? "The masjid is now open" : "The masjid is now closed"),
             body: message || clip(b.body, 180), tag: "masjid-status", kind: "status", url: "./"
@@ -194,11 +197,30 @@ export async function onRequest({ request, env, params }) {
           const iqamah = /^([01]\d|2[0-3]):[0-5]\d$/.test(p.iqamah || "") ? p.iqamah : "";
           prayers[k] = { on: !!p.on, iqamah };
         }
-        const jamaah = { prayers, by: who, at: new Date().toISOString() };
+        // what changed, worked out on the imam's page in plain words, e.g. "Dhuhr iqamah: 13:00 → 13:30";
+        // kept with the setting so the app can mark it for the rest of the day
+        const prev = await kvGet(env.DB, KEYS.jamaah);
+        const changes = (Array.isArray(b.changes) ? b.changes : []).slice(0, 5)
+          .filter((c) => c && JAMAAH_PRAYERS.includes(c.key))
+          .map((c) => ({ key: c.key, text: clip(c.text, 120) }));
+        const now = new Date().toISOString();
+        const jamaah = {
+          prayers, by: who, at: now,
+          changes: changes.length ? changes : (prev && prev.changes) || [],
+          changedAt: changes.length ? now : (prev && prev.changedAt) || null
+        };
         await kvSet(env.DB, KEYS.jamaah, jamaah);
         const held = JAMAAH_PRAYERS.filter((k) => prayers[k].on).map((k) => PRAYER_NAMES[k] + (prayers[k].iqamah ? ` ${prayers[k].iqamah}` : ""));
-        await logAction(env, who, held.length ? `Prayers at the masjid: ${held.join(", ")}` : "No prayers at the masjid");
-        return json({ ok: true, jamaah });
+        await logAction(env, who, changes.length ? `Changed: ${changes.map((c) => c.text).join("; ")}` : held.length ? `Prayers at the masjid: ${held.join(", ")}` : "No prayers at the masjid");
+        // time-sensitive: goes to everyone who has adhan OR news notifications on
+        let notified = 0;
+        if (changes.length && b.notify) {
+          notified = await broadcast(env, "all", {
+            title: changes.length === 1 ? "Iqamah time changed" : "Prayer times at the masjid changed",
+            body: changes.map((c) => c.text).join(" · "), tag: "masjid-iqamah", kind: "iqamah-change", url: "./"
+          }, { ttl: 12 * 3600, urgency: "high" });
+        }
+        return json({ ok: true, jamaah, notified });
       }
 
       if (path === "/admin/announcement" && method === "POST") {

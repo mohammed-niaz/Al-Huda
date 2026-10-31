@@ -53,6 +53,11 @@ a { color: var(--brass-hi); }
 .now .why { overflow-wrap: anywhere; }
 .wrap > *, .card, .card > * { min-width: 0; }
 .big { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.opening { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 10px; align-items: end; padding: 12px; border-radius: 14px; background: rgba(0,0,0,0.2); border: 1px solid var(--line); }
+.opening input { font-size: 1.15rem; font-weight: 700; color: var(--brass-hi); }
+.opening button { padding: 12px 22px; }
+.opening .hint, .opening .msg { grid-column: 1 / -1; }
+.opening .msg:empty { display: none; }
 button {
   font: inherit; cursor: pointer; border-radius: 14px; padding: 12px 16px; font-weight: 700;
   border: 1px solid var(--line); background: rgba(241,233,214,0.05); color: var(--ivory);
@@ -245,6 +250,13 @@ body.in-view #install { display: none; }
     <div class="view-head"><button class="back" aria-label="Back">‹</button><h2>Masjid status</h2></div>
     <section class="card">
       <div class="now" id="now"><div class="state" id="now-state">—</div><div class="why" id="now-why"></div><div class="note" id="now-note"></div></div>
+      <!-- while closed: when the doors open (no notification) -->
+      <div class="opening" id="opening" hidden>
+        <label for="open-at">Opening time<input type="time" id="open-at"></label>
+        <button class="b-primary" id="b-open-at">Set</button>
+        <p class="hint" id="open-at-hint">The app shows “Masjid closed · opens at …” with this time. No notification is sent.</p>
+        <div class="msg" id="open-at-msg"></div>
+      </div>
       <div class="big">
         <button class="b-open" id="b-open">OPEN</button>
         <button class="b-close" id="b-close">CLOSE</button>
@@ -273,6 +285,8 @@ body.in-view #install { display: none; }
       <p class="hint">Tick the prayers held at the masjid. Only these show in the app's “At the Masjid” tab; with none ticked it says “No prayers performed today at the Masjid”. Leave the iqamah empty to keep the usual time.</p>
       <div class="jm" id="jm-list"></div>
       <p class="hint" id="jm-friday"></p>
+      <label class="check"><input type="checkbox" id="jm-notify" checked> Notify everyone about this change</label>
+      <p class="hint" id="jm-preview"></p>
       <button class="b-primary" id="b-jm">Save</button>
       <div class="msg" id="jm-msg"></div>
       <p class="hint" id="jm-current"></p>
@@ -429,6 +443,9 @@ function renderStatus() {
   $("t-status").className = "tile " + (st.open ? "open" : "closed");
   $("ts-status").textContent = (st.open ? "Open" : "Closed") + (st.change ? (st.open ? ` · until ${when(st.change)}` : ` · opens ${when(st.change)}`) : "");
   $("b-auto").hidden = !st.manual;
+  // closed: offer to set the opening time, prefilled with the current one
+  $("opening").hidden = st.open;
+  if (!st.open && !openAtDirty && document.activeElement !== $("open-at")) $("open-at").value = st.change ? S.hm(st.change) : "";
   const nx = S.nextScheduleChange(n);
   $("u-tt").textContent = nx ? `Until timetable (${when(nx)})` : "Until timetable";
   const today = S.openWindows(n).filter((w) => S.ymdOf(w.from) === S.ymdOf(n));
@@ -467,6 +484,27 @@ async function setStatus(mode) {
   } catch (e) { say("status-msg", e.message, false); }
   btns.forEach((b) => (b.disabled = false));
 }
+// ---- opening time: closed until the imam's time, then open until the timetable closes (after Isha) ----
+let openAtDirty = false;
+$("open-at").addEventListener("input", () => (openAtDirty = true));
+$("b-open-at").addEventListener("click", async () => {
+  const v = $("open-at").value;
+  if (!v) return say("open-at-msg", "Pick a time first.", false);
+  const n = new Date();
+  let from = S.zoned(S.ymdOf(n), v);
+  if (from <= n) from = S.zoned(S.addDays(S.ymdOf(n), 1), v);      // already past today → tomorrow
+  const w = S.openWindows(from).find((x) => x.to > from);
+  const until = w ? w.to : S.addMin(from, 6 * 60);
+  $("b-open-at").disabled = true;
+  try {
+    const d = await api("admin/status", { mode: "open", from: from.toISOString(), until: until.toISOString(), notify: false, fromLabel: when(from) });
+    server.override = d.override || null; openAtDirty = false;
+    say("open-at-msg", `Saved. The app shows “Masjid closed · opens at ${when(from)}”.`, true);
+    renderStatus(); refresh();
+  } catch (e) { say("open-at-msg", e.message, false); }
+  $("b-open-at").disabled = false;
+});
+
 $("b-open").addEventListener("click", () => setStatus("open"));
 $("b-close").addEventListener("click", () => setStatus("closed"));
 $("b-auto").addEventListener("click", () => setStatus("auto"));
@@ -510,18 +548,49 @@ function jmSummary() {
   const j = server.jamaah;
   $("jm-current").textContent = j && j.by ? `Last changed by ${j.by} at ${when(new Date(j.at))}.` : "";
 }
-$("jm-list").addEventListener("input", () => { jmDirty = true; jmRowState(); });
-$("jm-list").addEventListener("change", () => { jmDirty = true; jmRowState(); });
+// the usual iqamah (config.js rule) on a normal day: today, or Saturday when today is Friday (Jumu'ah)
+function usualIqamah(k) {
+  let ymd = S.ymdOf(new Date());
+  if (S.day(ymd) && S.day(ymd).friday) ymd = S.addDays(ymd, 1);
+  const p = S.day(ymd) && S.day(ymd).list.find((x) => x.key === k);
+  return p ? S.hm(p.iqamah) : "";
+}
+function jmForm() {
+  const prayers = {};
+  JM.forEach(([k]) => (prayers[k] = { on: $("jm-on-" + k).checked, iqamah: $("jm-on-" + k).checked ? $("jm-iq-" + k).value : "" }));
+  return prayers;
+}
+// plain-words difference between what's saved and the form, e.g. "Dhuhr iqamah: 13:00 → 13:30"
+function jmChanges(next) {
+  const old = (server.jamaah && server.jamaah.prayers) || {};
+  const out = [];
+  JM.forEach(([k, name]) => {
+    const a = old[k] || {}, b = next[k];
+    const ta = a.iqamah || usualIqamah(k), tb = b.iqamah || usualIqamah(k);
+    if (a.on && b.on && ta !== tb) out.push({ key: k, text: `${name} iqamah: ${ta} → ${tb}` });
+    else if (!a.on && b.on) out.push({ key: k, text: `${name} now held at the masjid · iqamah ${tb}` });
+    else if (a.on && !b.on) out.push({ key: k, text: `${name} no longer held at the masjid` });
+  });
+  return out;
+}
+function jmPreview() {
+  const c = jmChanges(jmForm());
+  $("jm-preview").textContent = c.length ? "Changes: " + c.map((x) => x.text).join(" · ") : "";
+  $("jm-notify").parentElement.hidden = !c.length;
+}
+$("jm-list").addEventListener("input", () => { jmDirty = true; jmRowState(); jmPreview(); });
+$("jm-list").addEventListener("change", () => { jmDirty = true; jmRowState(); jmPreview(); });
 $("b-jm").addEventListener("click", async () => {
   $("b-jm").disabled = true;
   try {
-    const prayers = {};
-    JM.forEach(([k]) => (prayers[k] = { on: $("jm-on-" + k).checked, iqamah: $("jm-on-" + k).checked ? $("jm-iq-" + k).value : "" }));
-    const d = await api("admin/jamaah", { prayers });
+    const prayers = jmForm(), changes = jmChanges(prayers), notify = $("jm-notify").checked;
+    const d = await api("admin/jamaah", { prayers, changes, notify });
     server.jamaah = d.jamaah; jmDirty = false;
     const n = Object.values(prayers).filter((p) => p.on).length;
-    say("jm-msg", n ? `Saved. The app now shows ${n} prayer${n === 1 ? "" : "s"} at the masjid.` : "Saved. The app shows “No prayers performed today at the Masjid”.", true);
-    jmFill(); jmSummary();
+    const sent = changes.length && notify ? ` Notification on its way to ${d.notified} phone${d.notified === 1 ? "" : "s"}.` : "";
+    say("jm-msg", (n ? `Saved. The app now shows ${n} prayer${n === 1 ? "" : "s"} at the masjid.` : "Saved. The app shows “No prayers performed today at the Masjid”.") + sent, true);
+    $("jm-notify").checked = true;
+    jmFill(); jmSummary(); jmPreview();
   } catch (e) { say("jm-msg", e.message, false); }
   $("b-jm").disabled = false;
 });
@@ -633,7 +702,7 @@ async function refresh() {
     server = { override: d.override || null, reminder: d.reminder || null, announcement: d.announcement || null, jamaah: d.jamaah || null };
     const a = server.announcement;
     $("ts-ann").textContent = a ? "Banner is live" : "No banner";
-    jmFill(); jmSummary();
+    jmFill(); jmSummary(); jmPreview();
     if (!ANN.some((k) => document.activeElement === $("ann-" + k)))
       ANN.forEach((k) => ($("ann-" + k).value = a ? (a.en || a.sk || a.ar ? a[k] || "" : k === "en" ? a.text || "" : "") : ""));
   } catch (e) {}
@@ -665,7 +734,7 @@ else {
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 
 renderReminderForm();
-jmTimes(); jmFill(); jmSummary();
+jmTimes(); jmFill(); jmSummary(); jmPreview();
 if (code) signIn(); else $("signin").hidden = false;
 setInterval(renderStatus, 15000);
 setInterval(() => { if (!$("panel").hidden && document.visibilityState === "visible") refresh(); }, 30000);

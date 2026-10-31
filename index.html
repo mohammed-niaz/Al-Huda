@@ -287,6 +287,10 @@ body { padding-block: 12px; }
 .tabs button[aria-selected="true"] { background: var(--brass); color: var(--ground); }
 .disc { margin-top: 12px; font-size: 0.85rem; color: var(--brass-hi); font-weight: 500; }
 .disc:empty { display: none; }
+.change-note { margin-top: 12px; padding: 9px 12px; border-radius: 10px; border: 1px solid rgba(217,170,88,0.45); background: rgba(217,170,88,0.1); color: var(--ivory); font-size: 0.9rem; overflow-wrap: anywhere; }
+.change-note b { color: var(--brass-hi); }
+.change-note:empty { display: none; }
+.tag.chg { background: none; color: var(--brass-hi); box-shadow: inset 0 0 0 1px var(--brass); }
 td.t.big { font-size: 1.6rem; font-weight: 700; color: var(--brass-hi); }
 td.t.sm { font-size: 0.95rem; color: var(--muted); }
 tr.none td { padding: 28px 12px; text-align: center; color: var(--muted); font-size: 1.05rem; }
@@ -567,6 +571,7 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
             <tbody id="tbody"></tbody>
           </table>
         </div>
+        <div class="change-note" id="t-change" role="status"></div>
         <div class="disc" id="t-disc"></div>
         <div class="source" id="t-note"></div>
       </section>
@@ -744,12 +749,14 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
     return openWindows(t).some((w) => t >= w.from && t < w.to);
   }
   const imamActive = (t) => { const o = SERVER.override; return !!(o && (o.mode === "open" || o.mode === "closed") && (!o.until || t < new Date(o.until))); };
-  const effOpen = (t) => (imamActive(t) ? SERVER.override.mode === "open" : scheduleOpen(t));
+  // an "open" change may start later (`from`: the opening time the imam set); closed until then
+  const effOpen = (t) => (imamActive(t) ? SERVER.override.mode === "open" && (!SERVER.override.from || t >= new Date(SERVER.override.from)) : scheduleOpen(t));
   function openState(n) {
     const open = effOpen(n), manual = imamActive(n);
     const wins = openWindows(n);
     const edges = wins.flatMap((w) => [w.from, w.to]);
     if (manual && SERVER.override.until) edges.push(new Date(SERVER.override.until));
+    if (manual && SERVER.override.from) edges.push(new Date(SERVER.override.from));
     let change = null;
     for (const e of edges.filter((t) => t > n).sort((a, b) => a - b)) if (effOpen(new Date(e.getTime() + 1000)) !== open) { change = e; break; }
     const o = C.openStatus || {};
@@ -874,14 +881,20 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
     if (masjid) {
       $("thead").innerHTML = `<tr><th>Prayer</th><th class="t">Adhan</th><th class="t">Iqamah</th></tr>`;
       const held = d.list.filter((p) => p.atMasjid);
+      // the imam's latest change stays marked for the rest of that day
+      const J = SERVER.jamaah;
+      const changes = J && J.changedAt && ymdOf(new Date(J.changedAt)) === d.ymd ? J.changes || [] : [];
+      const changed = new Set(changes.map((c) => c.key));
       held.forEach((p) => {
         const isLive = st.live === p || st.inJamaah === p;
         const isNext = !isLive && st.next === p && !st.live;
         const done = !isLive && p.iqamah < n && !(st.inJamaah === p);
         const cls = isLive ? "live" : isNext ? "next" : done ? "done" : "";
-        const tag = isLive ? `<span class="tag">${st.live === p ? "Iqamah soon" : "Now"}</span>` : isNext ? `<span class="tag">Next</span>` : "";
+        const tag = (isLive ? `<span class="tag">${st.live === p ? "Iqamah soon" : "Now"}</span>` : isNext ? `<span class="tag">Next</span>` : "")
+          + (changed.has(p.key) && p.name !== "Jumu'ah" ? `<span class="tag chg">Changed</span>` : "");
         rows.push(`<tr class="${cls}">${label(p, tag)}<td class="t sm">${hm(p.adhan)}</td><td class="t iq big">${hm(p.iqamah)}</td></tr>`);
       });
+      $("t-change").innerHTML = changes.length ? `<b>Changed today:</b> ${changes.map((c) => esc(c.text)).join(" · ")}` : "";
       if (!held.length) rows.push(`<tr class="none"><td colspan="3">No prayers performed today at the Masjid.</td></tr>`);
       $("t-disc").textContent = held.length ? "Note: these are the timings offered at the masjid (congregational prayers)." : "";
     } else {
@@ -896,6 +909,7 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
         rows.push(`<tr class="${cls}">${label(p, tag)}<td class="t iq big">${hm(p.adhan)}</td></tr>`);
       });
       $("t-disc").textContent = "";
+      $("t-change").innerHTML = "";
     }
     $("tbody").innerHTML = rows.join("");
     $("t-note").innerHTML = d.src === "islamicfinder"

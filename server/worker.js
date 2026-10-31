@@ -73,8 +73,8 @@ async function drainOutbox(env) {
   for (const row of results) {
     const claim = await env.DB.prepare("UPDATE outbox SET done = 1 WHERE id = ? AND done = 0").bind(row.id).run();
     if (!claim.meta || claim.meta.changes !== 1) continue;      // another run already took it
-    const col = row.topic === "adhan" ? "adhan" : "status";
-    const { results: subs } = await env.DB.prepare(`SELECT endpoint, p256dh, auth FROM subs WHERE ${col} = 1`).all();
+    const where = row.topic === "all" ? "(adhan = 1 OR status = 1)" : row.topic === "adhan" ? "adhan = 1" : "status = 1";
+    const { results: subs } = await env.DB.prepare(`SELECT endpoint, p256dh, auth FROM subs WHERE ${where}`).all();
     const payload = JSON.parse(row.payload), opts = JSON.parse(row.opts || "{}");
     const msgs = [];
     for (let i = 0; i < subs.length; i += BATCH) {
