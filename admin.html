@@ -53,10 +53,10 @@ a { color: var(--brass-hi); }
 .now .why { overflow-wrap: anywhere; }
 .wrap > *, .card, .card > * { min-width: 0; }
 .big { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.opening { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 10px; align-items: end; padding: 12px; border-radius: 14px; background: rgba(0,0,0,0.2); border: 1px solid var(--line); }
+.opening { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: end; padding: 12px; border-radius: 14px; background: rgba(0,0,0,0.2); border: 1px solid var(--line); }
 .opening input { font-size: 1.15rem; font-weight: 700; color: var(--brass-hi); }
-.opening button { padding: 12px 22px; }
-.opening .hint, .opening .msg { grid-column: 1 / -1; }
+.opening button, .opening .hint, .opening .msg { grid-column: 1 / -1; }
+.opening.only-close #close-at-wrap { grid-column: 1 / -1; }
 .opening .msg:empty { display: none; }
 button {
   font: inherit; cursor: pointer; border-radius: 14px; padding: 12px 16px; font-weight: 700;
@@ -80,7 +80,6 @@ textarea.ar { font-family: var(--font-quran); font-size: 1.25rem; direction: rtl
 .seg { display: flex; gap: 4px; padding: 4px; border-radius: 14px; background: rgba(0,0,0,0.22); border: 1px solid var(--line); flex-wrap: wrap; }
 .seg button { flex: 1 1 auto; border: none; background: none; color: var(--muted); padding: 9px 10px; font-weight: 600; font-size: 0.9rem; border-radius: 10px; }
 .seg button[aria-pressed="true"] { background: var(--brass); color: var(--ground); }
-#until-seg { display: grid; grid-template-columns: 1fr 1fr; }
 .msg { min-height: 1.3em; font-size: 0.92rem; font-weight: 600; }
 .msg.ok { color: var(--open); } .msg.err { color: var(--closed); }
 .preview { border: 1px dashed var(--line); border-radius: 14px; padding: 12px 14px; display: grid; gap: 6px; }
@@ -250,26 +249,18 @@ body.in-view #install { display: none; }
     <div class="view-head"><button class="back" aria-label="Back">‹</button><h2>Masjid status</h2></div>
     <section class="card">
       <div class="now" id="now"><div class="state" id="now-state">—</div><div class="why" id="now-why"></div><div class="note" id="now-note"></div></div>
-      <!-- while closed: when the doors open (no notification) -->
-      <div class="opening" id="opening" hidden>
-        <label for="open-at">Opening time<input type="time" id="open-at"></label>
-        <button class="b-primary" id="b-open-at">Set</button>
-        <p class="hint" id="open-at-hint">The app shows “Masjid closed · opens at …” with this time. No notification is sent.</p>
-        <div class="msg" id="open-at-msg"></div>
+      <!-- opening (only while closed) and closing time; no notification -->
+      <div class="opening" id="opening">
+        <label for="open-at" id="open-at-wrap">Opening time<input type="time" id="open-at"></label>
+        <label for="close-at" id="close-at-wrap">Closing time<input type="time" id="close-at"></label>
+        <button class="b-primary" id="b-times">Set</button>
+        <p class="hint" id="times-hint"></p>
+        <div class="msg" id="times-msg"></div>
       </div>
       <div class="big">
         <button class="b-open" id="b-open">OPEN</button>
         <button class="b-close" id="b-close">CLOSE</button>
       </div>
-      <label>How long
-        <div class="seg" id="until-seg" role="group" aria-label="How long">
-          <button type="button" data-until="timetable" aria-pressed="true" id="u-tt">Until timetable</button>
-          <button type="button" data-until="60" aria-pressed="false">1 hour</button>
-          <button type="button" data-until="120" aria-pressed="false">2 hours</button>
-          <button type="button" data-until="time" aria-pressed="false">Until…</button>
-        </div>
-      </label>
-      <label for="until-time" id="until-time-wrap" hidden>Until this time<input type="time" id="until-time"></label>
       <label for="message">Note for everyone (optional)<input type="text" id="message" maxlength="140" placeholder="e.g. Back after Asr"></label>
       <label class="check"><input type="checkbox" id="notify" checked> Send a notification to everyone</label>
       <div class="msg" id="status-msg"></div>
@@ -411,24 +402,20 @@ $("b-signout").addEventListener("click", () => {
 });
 
 // ---------------- status ----------------
-let untilChoice = "timetable";
-$("until-seg").addEventListener("click", (e) => {
-  const b = e.target.closest("button"); if (!b) return;
-  untilChoice = b.dataset.until;
-  $("until-seg").querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b));
-  $("until-time-wrap").hidden = untilChoice !== "time";
-});
-function chosenUntil() {
-  const n = new Date();
-  if (untilChoice === "60" || untilChoice === "120") return S.addMin(n, +untilChoice);
-  if (untilChoice === "time") {
-    const v = $("until-time").value; if (!v) return null;
-    let u = S.zoned(S.ymdOf(n), v);
-    if (u <= n) u = S.zoned(S.addDays(S.ymdOf(n), 1), v);
-    return u;
-  }
-  return S.nextScheduleChange(n);           // until the timetable next opens or closes
+// a clock time at or after `after`: that day, or the next day if it has already passed
+function nextAt(v, after) {
+  let t = S.zoned(S.ymdOf(after), v);
+  if (t <= after) t = S.zoned(S.addDays(S.ymdOf(after), 1), v);
+  return t;
 }
+// the timetable's next opening after t
+const nextOpening = (t) => { const w = S.openWindows(t).find((x) => x.from > t); return w ? w.from : null; };
+// "OPEN now" lasts until today's normal closing time (or an hour, if that has passed)
+function closingToday(n) {
+  const w = S.openWindows(n).find((x) => x.to > n && S.ymdOf(x.to) === S.ymdOf(n));
+  return w ? w.to : S.addMin(n, 60);
+}
+let timesDirty = false, lastOpen = null;
 function renderStatus() {
   const n = new Date();
   const st = S.effectiveStatus(n, server.override);
@@ -443,16 +430,29 @@ function renderStatus() {
   $("t-status").className = "tile " + (st.open ? "open" : "closed");
   $("ts-status").textContent = (st.open ? "Open" : "Closed") + (st.change ? (st.open ? ` · until ${when(st.change)}` : ` · opens ${when(st.change)}`) : "");
   $("b-auto").hidden = !st.manual;
-  // closed: offer to set the opening time, prefilled with the current one
-  $("opening").hidden = st.open;
-  if (!st.open && !openAtDirty && document.activeElement !== $("open-at")) $("open-at").value = st.change ? S.hm(st.change) : "";
-  const nx = S.nextScheduleChange(n);
-  $("u-tt").textContent = nx ? `Until timetable (${when(nx)})` : "Until timetable";
+
+  // times: open → closing time only; closed → opening + closing time. Prefilled with the current ones.
+  if (st.open !== lastOpen) { timesDirty = false; lastOpen = st.open; }
+  $("opening").classList.toggle("only-close", st.open);
+  $("open-at-wrap").hidden = st.open;
+  $("times-hint").textContent = st.open
+    ? "The app shows “Masjid open · until …”. Later than usual is fine (e.g. Ramadan). No notification is sent."
+    : "Closed until the opening time, then open until the closing time. No notification is sent.";
+  if (!timesDirty && !$("opening").contains(document.activeElement)) {
+    if (st.open) $("close-at").value = st.change ? S.hm(st.change) : "";
+    else {
+      const closes = st.change ? S.effectiveStatus(new Date(st.change.getTime() + 1000), ov).change : null;
+      $("open-at").value = st.change ? S.hm(st.change) : "";
+      $("close-at").value = closes ? S.hm(closes) : "";
+    }
+  }
+
   const today = S.openWindows(n).filter((w) => S.ymdOf(w.from) === S.ymdOf(n));
   $("timetable").textContent = today.length
     ? "Timetable today: open " + today.map((w) => `${S.hm(w.from)}–${S.hm(w.to)}${w.label ? ` (${w.label})` : ""}`).join(", ")
     : "Timetable today: closed";
 }
+// OPEN / CLOSE now (with optional note + notification), or back to the timetable
 async function setStatus(mode) {
   const btns = ["b-open", "b-close", "b-auto"].map($);
   btns.forEach((b) => (b.disabled = true));
@@ -465,8 +465,7 @@ async function setStatus(mode) {
         title: st.open ? "The masjid is open" : "The masjid is closed",
         body: st.change ? (st.open ? `Until ${S.hm(st.change)}.` : `It opens at ${when(st.change)}.`) : "" };
     } else {
-      const until = chosenUntil();
-      if (untilChoice === "time" && !until) throw new Error("Pick a time, or choose another option.");
+      const until = mode === "open" ? closingToday(n) : nextOpening(n);
       const preview = S.effectiveStatus(n, { mode, until: until && until.toISOString() });
       const msg = $("message").value.trim();
       body = { mode, message: msg, until: until ? until.toISOString() : null, notify: $("notify").checked,
@@ -476,7 +475,7 @@ async function setStatus(mode) {
           : (preview.change ? `It opens again at ${when(preview.change)}.` : "We'll let you know when it opens.")) };
     }
     const d = await api("admin/status", body);
-    server.override = d.override || null;
+    server.override = d.override || null; timesDirty = false;
     const what = mode === "open" ? "Marked as open" : mode === "closed" ? "Marked as closed" : "Back to the timetable";
     say("status-msg", `${what}.${body.notify ? ` Notification on its way to ${d.notified} phone${d.notified === 1 ? "" : "s"}.` : ""}`, true);
     $("message").value = "";
@@ -484,25 +483,31 @@ async function setStatus(mode) {
   } catch (e) { say("status-msg", e.message, false); }
   btns.forEach((b) => (b.disabled = false));
 }
-// ---- opening time: closed until the imam's time, then open until the timetable closes (after Isha) ----
-let openAtDirty = false;
-$("open-at").addEventListener("input", () => (openAtDirty = true));
-$("b-open-at").addEventListener("click", async () => {
-  const v = $("open-at").value;
-  if (!v) return say("open-at-msg", "Pick a time first.", false);
-  const n = new Date();
-  let from = S.zoned(S.ymdOf(n), v);
-  if (from <= n) from = S.zoned(S.addDays(S.ymdOf(n), 1), v);      // already past today → tomorrow
-  const w = S.openWindows(from).find((x) => x.to > from);
-  const until = w ? w.to : S.addMin(from, 6 * 60);
-  $("b-open-at").disabled = true;
+// ---- opening / closing time: no notification ----
+["open-at", "close-at"].forEach((id) => $(id).addEventListener("input", () => (timesDirty = true)));
+$("b-times").addEventListener("click", async () => {
+  const n = new Date(), st = S.effectiveStatus(n, server.override);
+  $("b-times").disabled = true;
   try {
-    const d = await api("admin/status", { mode: "open", from: from.toISOString(), until: until.toISOString(), notify: false, fromLabel: when(from) });
-    server.override = d.override || null; openAtDirty = false;
-    say("open-at-msg", `Saved. The app shows “Masjid closed · opens at ${when(from)}”.`, true);
+    const cv = $("close-at").value;
+    if (!cv) throw new Error("Pick a closing time.");
+    let open = null;
+    if (!st.open) {
+      const ovv = $("open-at").value;
+      if (!ovv) throw new Error("Pick an opening time.");
+      open = nextAt(ovv, n);
+    }
+    const close = nextAt(cv, open || n);                 // after the opening (or now); a later-than-usual time is fine
+    const until = nextOpening(close) || S.addMin(close, 12 * 60);
+    const d = await api("admin/status", {
+      mode: "hours", open: open && open.toISOString(), close: close.toISOString(), until: until.toISOString(),
+      openLabel: open ? when(open) : "", closeLabel: when(close)
+    });
+    server.override = d.override || null; timesDirty = false;
+    say("times-msg", open ? `Saved. Opens at ${when(open)}, closes at ${when(close)}.` : `Saved. Open until ${when(close)}.`, true);
     renderStatus(); refresh();
-  } catch (e) { say("open-at-msg", e.message, false); }
-  $("b-open-at").disabled = false;
+  } catch (e) { say("times-msg", e.message, false); }
+  $("b-times").disabled = false;
 });
 
 $("b-open").addEventListener("click", () => setStatus("open"));

@@ -748,15 +748,20 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
     if (mode === "closed") return false;
     return openWindows(t).some((w) => t >= w.from && t < w.to);
   }
-  const imamActive = (t) => { const o = SERVER.override; return !!(o && (o.mode === "open" || o.mode === "closed") && (!o.until || t < new Date(o.until))); };
-  // an "open" change may start later (`from`: the opening time the imam set); closed until then
-  const effOpen = (t) => (imamActive(t) ? SERVER.override.mode === "open" && (!SERVER.override.from || t >= new Date(SERVER.override.from)) : scheduleOpen(t));
+  // same rules as lib/schedule.js: OPEN / CLOSE now ({ mode, until }), or the times the imam set
+  // ({ mode: "hours", open, close, until }: closed until `open`, open until `close`, then closed until `until`)
+  const imamActive = (t) => { const o = SERVER.override; return !!(o && ["open", "closed", "hours"].includes(o.mode) && (!o.until || t < new Date(o.until))); };
+  function imamOpen(t) {
+    const o = SERVER.override;
+    if (o.mode === "hours") return (!o.open || t >= new Date(o.open)) && t < new Date(o.close);
+    return o.mode === "open" && (!o.from || t >= new Date(o.from));
+  }
+  const effOpen = (t) => (imamActive(t) ? imamOpen(t) : scheduleOpen(t));
   function openState(n) {
     const open = effOpen(n), manual = imamActive(n);
     const wins = openWindows(n);
     const edges = wins.flatMap((w) => [w.from, w.to]);
-    if (manual && SERVER.override.until) edges.push(new Date(SERVER.override.until));
-    if (manual && SERVER.override.from) edges.push(new Date(SERVER.override.from));
+    if (manual) ["until", "from", "open", "close"].forEach((k) => SERVER.override[k] && edges.push(new Date(SERVER.override[k])));
     let change = null;
     for (const e of edges.filter((t) => t > n).sort((a, b) => a - b)) if (effOpen(new Date(e.getTime() + 1000)) !== open) { change = e; break; }
     const o = C.openStatus || {};

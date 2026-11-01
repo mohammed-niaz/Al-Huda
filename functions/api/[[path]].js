@@ -135,8 +135,19 @@ export async function onRequest({ request, env, params }) {
 
       if (path === "/admin/status" && method === "POST") {
         const b = await request.json().catch(() => ({}));
-        const mode = ["open", "closed", "auto"].includes(b.mode) ? b.mode : null;
+        const mode = ["open", "closed", "auto", "hours"].includes(b.mode) ? b.mode : null;
         if (!mode) return json({ error: "Choose open, closed or back to the timetable." }, 400);
+        // opening / closing times the imam set: closed until `open` (optional), open until `close`,
+        // then closed until `until` (the next normal opening). Never notified.
+        if (mode === "hours") {
+          const open = isoOrNull(b.open), close = isoOrNull(b.close), until = isoOrNull(b.until);
+          if (!close || !until || (open && open >= close)) return json({ error: "Pick a closing time after the opening time." }, 400);
+          const override = { mode, open, close, until, message: "", by: who, at: new Date().toISOString() };
+          await kvSet(env.DB, KEYS.override, override);
+          const label = [b.openLabel && `opening ${clip(b.openLabel, 20)}`, `closing ${clip(b.closeLabel, 20) || close}`].filter(Boolean).join(" · ");
+          await logAction(env, who, `Set the ${label}`);
+          return json({ ok: true, override, notified: 0 });
+        }
         const message = clip(b.message, 140);
         let notified = 0;
         if (mode === "auto") {
