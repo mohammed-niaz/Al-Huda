@@ -96,6 +96,24 @@ ul.log b { color: var(--ivory); font-weight: 600; }
 .hint { color: var(--dim); font-size: 0.82rem; margin: 0; }
 .banner { border: 1px solid var(--closed); color: var(--closed); border-radius: 14px; padding: 12px 14px; font-size: 0.92rem; }
 
+/* people */
+ul.people { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+ul.people > li { background: rgba(0,0,0,0.2); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display: grid; gap: 8px; }
+ul.people .who { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+ul.people .who b { font-size: 1.02rem; }
+ul.people .who small, ul.people .meta { color: var(--muted); font-size: 0.82rem; overflow-wrap: anywhere; }
+ul.people .dev { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 0.86rem; color: var(--ivory); padding-top: 6px; border-top: 1px dashed var(--line); }
+ul.people .dev small { color: var(--dim); display: block; }
+ul.people .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+ul.people .acts button, ul.people .dev button { padding: 8px 12px; font-size: 0.88rem; }
+ul.people .empty { background: none; border: none; padding: 0; color: var(--dim); font-size: 0.9rem; }
+ul.people .temp { font-size: 0.92rem; color: var(--open); }
+ul.people .temp code, .invite code { font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--brass-hi); font-size: 1.05rem; user-select: all; }
+.b-danger { color: var(--closed); border-color: rgba(231,118,106,0.45); }
+.badge { display: inline-block; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 8px; border-radius: 99px; background: rgba(217,170,88,0.16); color: var(--brass-hi); }
+.invite { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 12px 14px; border-radius: 14px; background: rgba(0,0,0,0.25); border: 1px solid var(--line); }
+.tile .count { justify-self: start; }
+
 /* home: one icon button per control; each opens its own window */
 .home { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .tile {
@@ -210,13 +228,54 @@ body.in-view #install { display: none; }
 
   <div class="banner" id="setup-banner" hidden>The server isn't set up yet. The developer needs to run <b>Actions → Set up server</b> on GitHub once.</div>
 
-  <!-- sign in -->
+  <!-- sign in: username + password (or, until the imam's account exists, an old access code) -->
   <section class="card" id="signin" hidden>
     <h2>Sign in</h2>
-    <p class="hint">Enter the personal access code you were given. This phone remembers it.</p>
-    <label for="code">Access code<input type="password" id="code" autocomplete="current-password" placeholder="e.g. noor-sabr-1234-huda"></label>
-    <button class="b-primary" id="b-signin">Sign in</button>
+    <div id="si-account" class="stack">
+      <label for="si-user">Username<input type="text" id="si-user" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false"></label>
+      <label for="si-pass">Password<input type="password" id="si-pass" autocomplete="current-password"></label>
+      <button class="b-primary" id="b-signin">Sign in</button>
+      <p class="hint">New helper? <a href="#" id="to-signup">Request access</a> with the invite code from the imam.</p>
+    </div>
+    <div id="si-code" class="stack" hidden>
+      <p class="hint">Enter the personal access code you were given. This phone remembers it.</p>
+      <label for="code">Access code<input type="password" id="code" autocomplete="current-password" placeholder="e.g. noor-sabr-1234-huda"></label>
+      <button class="b-primary" id="b-code">Sign in</button>
+    </div>
     <div class="msg" id="signin-msg"></div>
+  </section>
+
+  <!-- request access -->
+  <section class="card" id="signup" hidden>
+    <h2>Request access</h2>
+    <p class="hint">The imam approves every request. Your account works on <b>this device only</b>, so sign up on the phone you will use.<span id="su-ios"> On iPhone, add this page to the Home Screen first and sign up from the icon: Safari and the icon count as different devices.</span></p>
+    <label for="su-invite">Invite code<input type="text" id="su-invite" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="from the imam, e.g. noor-huda-1234"></label>
+    <label for="su-name">Your name<input type="text" id="su-name" maxlength="60" autocomplete="name" placeholder="e.g. Br. Ali"></label>
+    <label for="su-user">Username<input type="text" id="su-user" maxlength="30" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="e.g. ali"></label>
+    <label for="su-pass">Password (at least 8 characters)<input type="password" id="su-pass" autocomplete="new-password"></label>
+    <label for="su-pass2">Password again<input type="password" id="su-pass2" autocomplete="new-password"></label>
+    <button class="b-primary" id="b-signup">Send request</button>
+    <div class="msg" id="signup-msg"></div>
+    <p class="hint"><a href="#" id="to-signin">Back to sign in</a></p>
+  </section>
+
+  <!-- waiting for approval -->
+  <section class="card" id="waiting" hidden>
+    <h2>Waiting for the imam</h2>
+    <p>Your request has been sent. When the imam approves it, sign in here with your username and password.</p>
+    <button class="b-primary" id="b-waiting">Sign in</button>
+  </section>
+
+  <!-- choose a new password (first sign-in, after a reset, or by choice) -->
+  <section class="card" id="newpass" hidden>
+    <h2>Choose your password</h2>
+    <p class="hint" id="np-why">You signed in with a temporary password. Choose your own; nobody else will know it.</p>
+    <label for="np-cur">Current password<input type="password" id="np-cur" autocomplete="current-password"></label>
+    <label for="np-new">New password (at least 8 characters)<input type="password" id="np-new" autocomplete="new-password"></label>
+    <label for="np-new2">New password again<input type="password" id="np-new2" autocomplete="new-password"></label>
+    <button class="b-primary" id="b-newpass">Save password</button>
+    <button id="b-np-cancel" hidden>Cancel</button>
+    <div class="msg" id="newpass-msg"></div>
   </section>
 
   <div id="panel" class="stack" hidden>
@@ -237,6 +296,10 @@ body.in-view #install { display: none; }
       <a class="tile" href="#reminder">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5z"/><path d="M12 6.5v13"/></svg></div>
         <b>Reminder of the day</b><span id="ts-rem">—</span>
+      </a>
+      <a class="tile wide" href="#people" id="t-people" hidden>
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M16 4.8a3.3 3.3 0 0 1 0 6.4M18.5 14.8c1.7.8 2.7 2.5 3 5.2"/></svg></div>
+        <b>People</b><span id="ts-people">—</span>
       </a>
       <a class="tile wide" href="#activity">
         <div class="ic"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 22a2.5 2.5 0 0 0 2.4-1.8H9.6A2.5 2.5 0 0 0 12 22zm7-6.5V11a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v4.5L3 17.5V19h18v-1.5z"/></svg></div>
@@ -326,6 +389,37 @@ body.in-view #install { display: none; }
     </section>
     </section>
 
+    <!-- people (imam only) -->
+    <section class="view" id="v-people" hidden>
+    <div class="view-head"><button class="back" aria-label="Back">‹</button><h2>People</h2></div>
+    <section class="card" id="pp-alerts-card" hidden>
+      <h2>Needs your attention</h2>
+      <ul class="people" id="pp-alerts"></ul>
+    </section>
+    <section class="card">
+      <h2>Requests</h2>
+      <ul class="people" id="pp-pending"></ul>
+    </section>
+    <section class="card">
+      <h2>People with access</h2>
+      <ul class="people" id="pp-active"></ul>
+      <div class="msg" id="pp-msg"></div>
+    </section>
+    <section class="card">
+      <h2>Invite code</h2>
+      <p class="hint">Give this code in person to someone you want to help. They use it to request access, and you still approve them here.</p>
+      <div class="invite"><code id="pp-invite">—</code><button id="b-invite-copy">Copy</button></div>
+      <button id="b-invite-new">Make a new code</button>
+      <p class="hint">A new code stops the old one working. Waiting requests are kept.</p>
+    </section>
+    <section class="card">
+      <h2>Alerts on this phone</h2>
+      <p class="hint" id="pp-push-hint">Get a notification when someone asks for access, or when an account is used on a new device.</p>
+      <button class="b-primary" id="b-pp-push">Turn on</button>
+      <div class="msg" id="pp-push-msg"></div>
+    </section>
+    </section>
+
     <!-- stats -->
     <section class="view" id="v-activity" hidden>
     <div class="view-head"><button class="back" aria-label="Back">‹</button><h2>Notifications &amp; activity</h2></div>
@@ -338,7 +432,10 @@ body.in-view #install { display: none; }
       </div>
       <h2>Recent changes</h2>
       <ul class="log" id="log"></ul>
-      <button id="b-signout">Sign out on this phone</button>
+      <div class="row">
+        <button id="b-chpass" hidden>Change my password</button>
+        <button id="b-signout">Sign out on this phone</button>
+      </div>
     </section>
     </section>
   </div>
@@ -355,8 +452,21 @@ let table = null;
 try { const r = await fetch("data/times.json", { cache: "no-cache" }); if (r.ok) table = await r.json(); } catch (e) {}
 const S = createSchedule({ config: C, table, adhan: window.adhan });
 const VERSES = window.DAILY_VERSES || [];
-const KEY = "masjid-admin-code";
-let code = ""; try { code = localStorage.getItem(KEY) || ""; } catch (e) {}
+const KEY = "masjid-admin-code", SKEY = "masjid-admin-session", DKEY = "masjid-admin-device";
+const store = {
+  get: (k) => { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } },
+  set: (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch (e) {} }
+};
+let code = store.get(KEY), token = store.get(SKEY), me = null, accounts = true;
+// this browser's device secret: made once, kept here; the server only stores its hash
+function deviceKey() {
+  let k = store.get(DKEY);
+  if (!k) {
+    k = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    store.set(DKEY, k);
+  }
+  return k;
+}
 let server = { override: null, reminder: null, announcement: null, jamaah: null };
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const say = (id, text, ok) => { $(id).textContent = text; $(id).className = "msg " + (ok ? "ok" : "err"); };
@@ -366,39 +476,124 @@ const when = (d) => {
   return sameDay ? S.hm(d) : `${new Intl.DateTimeFormat("en-GB", { timeZone: S.TZ, weekday: "short" }).format(d)} ${S.hm(d)}`;
 };
 
-async function api(path, body) {
-  const r = await fetch("api/" + path, {
-    method: body ? "POST" : "GET", cache: "no-store",
-    headers: { authorization: "Bearer " + code, ...(body ? { "content-type": "application/json" } : {}) },
-    body: body ? JSON.stringify(body) : undefined
-  });
+async function api(path, body, { auth = true } = {}) {
+  const headers = body ? { "content-type": "application/json" } : {};
+  if (auth) headers.authorization = token ? "Session " + token : "Bearer " + code;
+  const r = await fetch("api/" + path, { method: body ? "POST" : "GET", cache: "no-store", headers, body: body ? JSON.stringify(body) : undefined });
   let d = {};
   try { d = await r.json(); } catch (e) { d = { error: "The server can't be reached. Check the internet connection." }; }
   if (r.status === 503 && d.setup === false) $("setup-banner").hidden = false;
-  if (!r.ok) throw Object.assign(new Error(d.error || "Something went wrong."), { status: r.status });
+  if (!r.ok) throw Object.assign(new Error(d.error || "Something went wrong."), { status: r.status, data: d });
   return d;
 }
 
-// ---------------- sign in ----------------
-async function signIn() {
-  code = $("code").value.trim() || code;
-  if (!code) { $("signin").hidden = false; return; }
+// ---------------- sign in, request access, password ----------------
+const CARDS = ["signin", "signup", "waiting", "newpass", "panel"];
+function show(card) {
+  CARDS.forEach((c) => ($(c).hidden = c !== card));
+  if (card !== "panel") { $("who").textContent = "Mešita Al-huda"; document.body.classList.remove("in-view"); }
+}
+function signedOut(msg) {
+  token = ""; code = ""; me = null; store.set(SKEY, ""); store.set(KEY, "");
+  $("si-account").hidden = !accounts; $("si-code").hidden = accounts;
+  show("signin");
+  if (msg) say("signin-msg", msg, false);
+}
+async function enter() {
   try {
-    const me = await api("admin/me");
-    try { localStorage.setItem(KEY, code); } catch (e) {}
-    $("who").textContent = `Mešita Al-huda · signed in as ${me.name}`;
-    $("signin").hidden = true; $("panel").hidden = false;
-    await refresh();
+    me = await api("admin/me");
   } catch (e) {
-    $("signin").hidden = false; $("panel").hidden = true;
-    if ($("code").value) say("signin-msg", e.message, false);
+    if (e.status === 401 || e.status === 403) return signedOut(token || code ? e.message : "");
+    return say("signin-msg", e.message, false);
   }
+  if (me.mustChange) return askNewPassword(true);
+  $("who").textContent = `Mešita Al-huda · signed in as ${me.name}`;
+  const owner = me.role === "owner";
+  $("t-people").hidden = !owner;
+  $("b-chpass").hidden = me.legacy;
+  show("panel"); route();
+  await refresh();
+}
+async function signIn() {
+  const username = $("si-user").value.trim(), password = $("si-pass").value;
+  if (!username || !password) return say("signin-msg", "Write your username and password.", false);
+  $("b-signin").disabled = true; say("signin-msg", "", true);
+  try {
+    const d = await api("auth/login", { username, password, device: deviceKey() }, { auth: false });
+    token = d.token; store.set(SKEY, token); code = ""; store.set(KEY, "");
+    $("si-pass").value = "";
+    pendingPassword = password;
+    await enter();
+  } catch (e) {
+    if (e.data && e.data.pending) show("waiting");
+    else say("signin-msg", e.message, false);
+  }
+  $("b-signin").disabled = false;
+}
+async function codeSignIn() {
+  code = $("code").value.trim();
+  if (!code) return;
+  token = ""; store.set(SKEY, "");
+  try { await api("admin/me"); store.set(KEY, code); await enter(); }
+  catch (e) { say("signin-msg", e.message, false); }
 }
 $("b-signin").addEventListener("click", signIn);
-$("code").addEventListener("keydown", (e) => { if (e.key === "Enter") signIn(); });
-$("b-signout").addEventListener("click", () => {
-  try { localStorage.removeItem(KEY); } catch (e) {}
-  code = ""; $("code").value = ""; $("panel").hidden = true; $("signin").hidden = false; $("who").textContent = "Mešita Al-huda";
+["si-user", "si-pass"].forEach((id) => $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") signIn(); }));
+$("b-code").addEventListener("click", codeSignIn);
+$("code").addEventListener("keydown", (e) => { if (e.key === "Enter") codeSignIn(); });
+$("b-signout").addEventListener("click", async () => {
+  if (token) await api("admin/logout", {}).catch(() => {});
+  $("si-user").value = ""; $("code").value = "";
+  signedOut("");
+});
+
+// request access
+$("su-ios").hidden = !(/iPhone|iPad|iPod/.test(navigator.userAgent) && !(matchMedia("(display-mode: standalone)").matches || navigator.standalone));
+$("to-signup").addEventListener("click", (e) => { e.preventDefault(); say("signup-msg", "", true); show("signup"); });
+$("to-signin").addEventListener("click", (e) => { e.preventDefault(); show("signin"); });
+$("b-waiting").addEventListener("click", () => show("signin"));
+$("b-signup").addEventListener("click", async () => {
+  const v = (id) => $(id).value.trim();
+  if ($("su-pass").value !== $("su-pass2").value) return say("signup-msg", "The two passwords are different.", false);
+  $("b-signup").disabled = true;
+  try {
+    await api("auth/signup", { invite: v("su-invite"), name: v("su-name"), username: v("su-user"), password: $("su-pass").value, device: deviceKey() }, { auth: false });
+    $("si-user").value = v("su-user").toLowerCase();
+    ["su-invite", "su-name", "su-user", "su-pass", "su-pass2"].forEach((id) => ($(id).value = ""));
+    show("waiting");
+  } catch (e) { say("signup-msg", e.message, false); }
+  $("b-signup").disabled = false;
+});
+
+// choose a new password
+let pendingPassword = "", forcedPassword = false;
+function askNewPassword(forced) {
+  forcedPassword = forced;
+  $("np-why").textContent = forced
+    ? "You signed in with a temporary password. Choose your own; nobody else will know it."
+    : "Choose a new password. You stay signed in on this device; any other sign-in ends.";
+  $("np-cur").value = forced ? pendingPassword : "";
+  $("np-cur").closest("label").hidden = forced && !!pendingPassword;
+  $("np-new").value = $("np-new2").value = "";
+  $("b-np-cancel").hidden = forced;
+  say("newpass-msg", "", true);
+  show("newpass");
+}
+$("b-chpass").addEventListener("click", () => askNewPassword(false));
+$("b-np-cancel").addEventListener("click", () => { show("panel"); route(); });
+$("b-newpass").addEventListener("click", async () => {
+  if ($("np-new").value !== $("np-new2").value) return say("newpass-msg", "The two new passwords are different.", false);
+  $("b-newpass").disabled = true;
+  try {
+    await api("admin/password", { current: $("np-cur").value, next: $("np-new").value });
+    pendingPassword = "";
+    say("newpass-msg", "Password saved.", true);
+    await enter();
+  } catch (e) {
+    if (forcedPassword) $("np-cur").closest("label").hidden = false;   // e.g. the remembered one was wrong
+    say("newpass-msg", e.message, false);
+  }
+  $("b-newpass").disabled = false;
 });
 
 // ---------------- status ----------------
@@ -601,15 +796,16 @@ $("b-jm").addEventListener("click", async () => {
 });
 
 // ---------------- home ⇄ windows ----------------
-const VIEWS = ["status", "prayers", "announce", "reminder", "activity"];
+const VIEWS = ["status", "prayers", "announce", "reminder", "activity", "people"];
 let fromHome = false;
 function route() {
   const v = location.hash.slice(1);
-  const on = VIEWS.includes(v) ? v : "";
+  const on = VIEWS.includes(v) && (v !== "people" || (me && me.role === "owner")) ? v : "";
   $("home").hidden = !!on;
   VIEWS.forEach((k) => ($("v-" + k).hidden = k !== on));
   document.body.classList.toggle("in-view", !!on);
   window.scrollTo(0, 0);
+  if (on === "people") loadPeople();
 }
 $("home").addEventListener("click", (e) => { if (e.target.closest("a.tile")) fromHome = true; });
 document.querySelectorAll(".back").forEach((b) => b.addEventListener("click", () => {
@@ -698,6 +894,141 @@ async function setAnn(langs) {
 $("b-ann").addEventListener("click", () => { const l = {}; ANN.forEach((k) => (l[k] = $("ann-" + k).value.trim())); setAnn(l); });
 $("b-ann-clear").addEventListener("click", () => setAnn({ en: "", sk: "", ar: "" }));
 
+// ---------------- people (imam only) ----------------
+let people = null, tempPass = {};      // tempPass: a reset password, shown once to the imam
+const ago = (iso) => {
+  if (!iso) return "never";
+  const m = Math.round((Date.now() - new Date(iso)) / 60000);
+  if (m < 2) return "just now";
+  if (m < 60) return `${m} min ago`;
+  if (m < 48 * 60) return `${Math.round(m / 60)} h ago`;
+  return new Intl.DateTimeFormat("en-GB", { timeZone: S.TZ, day: "numeric", month: "short" }).format(new Date(iso));
+};
+const day = (iso) => iso ? new Intl.DateTimeFormat("en-GB", { timeZone: S.TZ, day: "numeric", month: "short", year: "numeric" }).format(new Date(iso)) : "";
+async function loadPeople() {
+  if (!me || me.role !== "owner") return;
+  try { people = await api("admin/people"); } catch (e) { return say("pp-msg", e.message, false); }
+  renderPeople();
+}
+function renderPeople() {
+  const P = people; if (!P) return;
+  const byId = Object.fromEntries(P.people.map((u) => [u.id, u]));
+  const pending = P.people.filter((u) => u.status === "pending");
+  const active = P.people.filter((u) => u.status === "active");
+  const alerts = P.alerts.filter((a) => a.kind !== "signup");     // requests have their own list
+  const helpers = active.filter((u) => u.role !== "owner").length;
+  $("ts-people").textContent = [
+    pending.length ? `${pending.length} request${pending.length === 1 ? "" : "s"} waiting` : "",
+    alerts.length ? `${alerts.length} alert${alerts.length === 1 ? "" : "s"}` : "",
+    `${helpers} helper${helpers === 1 ? "" : "s"} with access`
+  ].filter(Boolean).join(" · ");
+  $("t-people").classList.toggle("closed", pending.length + alerts.length > 0);
+
+  $("pp-alerts-card").hidden = !alerts.length;
+  $("pp-alerts").innerHTML = alerts.map((a) => `<li>
+      <div class="who"><b>${a.kind === "device" ? "New device blocked" : "Account locked"}</b><small>${esc(ago(a.at))}</small></div>
+      <div class="meta">${esc(a.text)}</div>
+      <div class="acts">${a.kind === "device" && byId[a.user_id] ? `<button class="b-primary" data-act="allow-device" data-alert="${a.id}">Allow this device</button>` : ""}<button data-act="dismiss" data-alert="${a.id}">${a.kind === "device" ? "Ignore" : "OK"}</button></div>
+    </li>`).join("");
+
+  $("pp-pending").innerHTML = pending.map((u) => `<li>
+      <div class="who"><b>${esc(u.name)}</b><small>${esc(u.username)} · asked ${esc(ago(u.created))}</small></div>
+      <div class="meta">Device: ${esc((u.devices[0] || {}).label || "unknown")}</div>
+      <div class="acts"><button class="b-primary" data-act="approve" data-user="${u.id}">Approve</button><button class="b-danger" data-act="reject" data-user="${u.id}" data-name="${esc(u.name)}">Turn down</button></div>
+    </li>`).join("") || `<li class="empty">No requests waiting.</li>`;
+
+  $("pp-active").innerHTML = active.map((u) => {
+    const owner = u.role === "owner";
+    const devs = u.devices.map((d) => `<div class="dev"><span>${esc(d.label)}${d.thisDevice ? " (this one)" : ""}<small>added ${esc(day(d.created))} · last used ${esc(ago(d.lastSeen))}</small></span>${d.thisDevice ? "" : `<button data-act="remove-device" data-device="${esc(d.id)}" data-name="${esc(d.label)}">Remove</button>`}</div>`).join("")
+      || `<div class="dev"><span>No device yet<small>${owner ? "" : "The first device they sign in on becomes theirs."}</small></span></div>`;
+    return `<li>
+      <div class="who"><b>${esc(u.name)} ${owner ? '<span class="badge">Imam</span>' : ""}</b><small>${esc(u.username)}${owner ? ` · up to ${u.maxDevices} devices` : u.approvedAt ? ` · approved ${esc(day(u.approvedAt))}${u.approvedBy ? ` by ${esc(u.approvedBy)}` : ""}` : ""}</small></div>
+      ${devs}
+      ${tempPass[u.id] ? `<div class="temp">Temporary password: <code>${esc(tempPass[u.id])}</code><br><small>Tell it to ${esc(u.name)} in person. They choose their own when they sign in.</small></div>` : ""}
+      ${owner ? "" : `<div class="acts"><button data-act="reset" data-user="${u.id}" data-name="${esc(u.name)}">Reset password</button><button class="b-danger" data-act="remove" data-user="${u.id}" data-name="${esc(u.name)}">Remove access</button></div>`}
+    </li>`;
+  }).join("");
+
+  $("pp-invite").textContent = P.invite || "—";
+  const was = alertsOn;
+  pushState(P.alertsOnThisDevice);
+  if (P.alertsOnThisDevice && !was) syncPush();
+}
+const CONFIRM = {
+  reject: (n) => `Turn down the request from ${n}?`,
+  remove: (n) => `Remove ${n}? They are signed out at once and can no longer use Imam controls.`,
+  reset: (n) => `Reset ${n}'s password? They are signed out and get a temporary password from you.`,
+  "remove-device": (n) => `Remove ${n}? It is signed out, and that person must sign in again on an allowed device.`
+};
+const DONE = { approve: "Approved. They can sign in now.", reject: "Request turned down.", remove: "Access removed.", "remove-device": "Device removed.", "allow-device": "Device allowed. They can sign in on it now.", dismiss: "" };
+let armed = null;   // tap once to arm a risky action, tap again to do it (no pop-ups)
+document.getElementById("v-people").addEventListener("click", async (e) => {
+  const b = e.target.closest("button[data-act]"); if (!b) return;
+  const act = b.dataset.act;
+  if (CONFIRM[act] && armed !== b) {
+    if (armed) { armed.textContent = armed.dataset.label; armed.classList.remove("b-primary"); }
+    armed = b; b.dataset.label = b.textContent; b.textContent = "Tap again to confirm";
+    say("pp-msg", CONFIRM[act](b.dataset.name || "this"), false);
+    setTimeout(() => { if (armed === b) { b.textContent = b.dataset.label; armed = null; } }, 6000);
+    return;
+  }
+  armed = null; b.disabled = true;
+  try {
+    const d = await api("admin/people", { action: act, user: b.dataset.user, device: b.dataset.device, alert: b.dataset.alert });
+    if (act === "reset") tempPass[b.dataset.user] = d.password;
+    say("pp-msg", act === "reset" ? "Password reset. The temporary password is shown above." : DONE[act], true);
+    await loadPeople();
+  } catch (err) { say("pp-msg", err.message, false); b.disabled = false; }
+});
+$("b-invite-copy").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText($("pp-invite").textContent); $("b-invite-copy").textContent = "Copied"; setTimeout(() => ($("b-invite-copy").textContent = "Copy"), 2000); } catch (e) {}
+});
+$("b-invite-new").addEventListener("click", async () => {
+  try { const d = await api("admin/people", { action: "new-invite" }); people.invite = d.invite; renderPeople(); say("pp-msg", "New invite code made.", true); }
+  catch (e) { say("pp-msg", e.message, false); }
+});
+
+// account alerts on this phone
+let alertsOn = false;
+function pushState(on) {
+  alertsOn = on;
+  const can = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  const iosBrowser = /iPhone|iPad|iPod/.test(navigator.userAgent) && !(matchMedia("(display-mode: standalone)").matches || navigator.standalone);
+  $("b-pp-push").hidden = !can || iosBrowser;
+  $("b-pp-push").textContent = on ? "Turn off" : "Turn on";
+  $("b-pp-push").classList.toggle("b-primary", !on);
+  $("pp-push-hint").textContent = on
+    ? "On. This phone is told when someone asks for access, or when an account is used on a new device."
+    : iosBrowser ? "On iPhone, add Imam controls to the Home Screen and open it from the icon to turn alerts on."
+    : !can ? "This browser can't receive notifications."
+    : "Get a notification when someone asks for access, or when an account is used on a new device.";
+}
+const toBytes = (k) => Uint8Array.from(atob(k.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((k.length + 3) % 4)), (c) => c.charCodeAt(0));
+async function pushSubscription(ask) {
+  const reg = await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub && ask) {
+    if (Notification.permission !== "granted" && (await Notification.requestPermission()) !== "granted") throw new Error("Notifications are blocked for this site. Allow them in the phone's settings.");
+    const { publicKey } = await (await fetch("api/push-key", { cache: "no-store" })).json();
+    if (!publicKey) throw new Error("The server isn't set up for notifications yet.");
+    sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: toBytes(publicKey) });
+  }
+  return sub;
+}
+$("b-pp-push").addEventListener("click", async () => {
+  $("b-pp-push").disabled = true;
+  try {
+    if (alertsOn) { await api("admin/push", { off: true }); pushState(false); say("pp-push-msg", "Alerts turned off on this phone.", true); }
+    else { const sub = await pushSubscription(true); await api("admin/push", { subscription: sub.toJSON() }); pushState(true); say("pp-push-msg", "Alerts are on for this phone.", true); }
+  } catch (e) { say("pp-push-msg", e.message, false); }
+  $("b-pp-push").disabled = false;
+});
+// the phone may have renewed its notification address (or the app turned it off): keep it up to date
+async function syncPush() {
+  if (!alertsOn || !("serviceWorker" in navigator) || Notification.permission !== "granted") return;
+  try { const sub = await pushSubscription(true); if (sub) await api("admin/push", { subscription: sub.toJSON() }); } catch (e) {}
+}
+
 // ---------------- refresh ----------------
 async function refresh() {
   try {
@@ -718,7 +1049,8 @@ async function refresh() {
     $("ts-act").textContent = `${s.subscribers} phone${s.subscribers === 1 ? "" : "s"} signed up for notifications`;
     const f = new Intl.DateTimeFormat("en-GB", { timeZone: S.TZ, weekday: "short", hour: "2-digit", minute: "2-digit" });
     $("log").innerHTML = s.log.map((l) => `<li><b>${esc(l.who)}</b> · ${esc(l.action)} · ${f.format(new Date(l.at))}</li>`).join("") || "<li>No changes yet.</li>";
-  } catch (e) { if (e.status === 401) { $("panel").hidden = true; $("signin").hidden = false; } }
+  } catch (e) { if (e.status === 401) signedOut(e.message); else if (e.data && e.data.mustChange) askNewPassword(true); }
+  if (me && me.role === "owner") loadPeople();
 }
 
 // ---------------- install as its own app ----------------
@@ -740,7 +1072,10 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catc
 
 renderReminderForm();
 jmTimes(); jmFill(); jmSummary(); jmPreview();
-if (code) signIn(); else $("signin").hidden = false;
+try { const r = await fetch("api/auth/mode", { cache: "no-store" }); if (r.ok) accounts = !!(await r.json()).accounts; else if (r.status === 503) $("setup-banner").hidden = false; } catch (e) {}
+$("si-account").hidden = !accounts; $("si-code").hidden = accounts;
+if (accounts && code && !token) { code = ""; store.set(KEY, ""); say("signin-msg", "Access codes have been replaced by accounts. Sign in with your username and password.", false); }
+if (token || code) enter(); else show("signin");
 setInterval(renderStatus, 15000);
 setInterval(() => { if (!$("panel").hidden && document.visibilityState === "visible") refresh(); }, 30000);
 </script>

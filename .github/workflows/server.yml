@@ -1,9 +1,14 @@
 name: Set up server
 # Run once by hand (Actions → Set up server → Run workflow). It also runs by itself
-# when the server code changes, and you can re-run it any time, e.g. after
-# changing the ADMIN_CODES secret to add or remove an imam.
+# when the server code changes, and you can re-run it any time. It creates the imam's
+# account from the IMAM_ACCOUNT secret; tick "Reset the imam's password" if he is locked out.
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      reset_imam:
+        description: "Reset the imam's password (he lost it, or lost his phones)"
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths: ["server/**", "lib/**", "scripts/setup-server.mjs"]
@@ -19,6 +24,8 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       ADMIN_CODES: ${{ secrets.ADMIN_CODES }}
+      IMAM_ACCOUNT: ${{ secrets.IMAM_ACCOUNT }}
+      RESET_IMAM: ${{ inputs.reset_imam }}
       PAGES_PROJECT: mesita-alhuda
       SITE_URL: https://mesita-alhuda.pages.dev
     steps:

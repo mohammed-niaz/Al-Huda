@@ -11,20 +11,22 @@ Live at **https://mesita-alhuda.pages.dev** · Imam page: **https://mesita-alhud
 | Person | Uses | Does |
 |---|---|---|
 | Brothers | the app | Add it to the Home Screen, tap the bell, turn on alerts |
-| Imam (or a trusted brother) | `/admin.html` | Open / close the masjid, set the reminder of the day, post an announcement. Everyone can be notified. |
-| Developer | GitHub | `config.js` (iqamah, Jumu'ah, opening hours), who gets an imam code |
+| Imam | `/admin.html` | Everything below, plus **People**: approves helpers, removes them, resets passwords, allows new devices |
+| Helpers (approved by the imam) | `/admin.html` | Open / close the masjid, set the reminder of the day, post an announcement. Everyone can be notified. |
+| Developer | GitHub | `config.js` (iqamah, Jumu'ah, opening hours); creates the imam's account once, and resets it if he is locked out |
 
 ## What's in the repository
 
 ```
 index.html                The app
-admin.html                Imam controls (needs a personal access code)
+admin.html                Imam controls (username + password; helpers sign up with an invite code)
 config.js                 ← iqamah, Jumu'ah, opening hours: the file you normally edit
 data/times.json           Adhan timetable from IslamicFinder (updated automatically)
 data/verses.js            Verses for the automatic reminder of the day
 sw.js                     Receives notifications while the app is closed; offline support
 lib/schedule.js           Prayer and opening-hours logic shared by the imam page and the worker
 lib/webpush.js            Encrypts and signs notifications (standard Web Push, works on iPhone)
+lib/password.js           Password hashing for the accounts
 functions/api/[[path]].js The site's API on Cloudflare Pages (/api/...)
 server/worker.js          Background worker: adhan notifications every minute, sends in batches
 server/schema.sql         Database tables
@@ -69,25 +71,45 @@ wrangler.toml             Created by the setup job: connects the site to the dat
 |---|---|
 | `CLOUDFLARE_API_TOKEN` | the token from step 1 |
 | `CLOUDFLARE_ACCOUNT_ID` | the account ID |
-| `ADMIN_CODES` | `{"Imam Yusuf":"noor-sabr-4821-huda"}` — one entry per person, codes at least 8 characters |
+| `IMAM_ACCOUNT` | `{"name":"Imam Yusuf","username":"imam","password":"a-temporary-password"}` — the password is temporary: he chooses his own at first sign-in |
 
 **3. Run it** — **Actions → Set up server → Run workflow**. It takes about a minute and:
-creates the database and queue, makes the notification keys, saves the imam codes (hashed),
+creates the database and queue, makes the notification keys, creates the imam's account,
 deploys the background worker (no public address), and commits `wrangler.toml` so Pages connects
 the site to the database. Pages then redeploys by itself (about a minute).
 
-**4. Check** — open `/admin.html`, sign in with the code, tap *Open the masjid* with
+**4. Check** — open `/admin.html`, sign in as the imam and choose a new password, tap *Open the masjid* with
 *Send a notification* ticked, and see it arrive on a phone that has alerts on.
 
 The job is safe to run again at any time; it never deletes data and never changes the
 notification keys once made (changing them would turn everyone's alerts off).
 
-## Adding or removing an imam
+## Accounts: the imam and his helpers
 
-Edit the `ADMIN_CODES` secret (all people in one line, e.g.
-`{"Imam Yusuf":"noor-sabr-4821-huda","Br. Ali":"salam-ilm-5617-dua"}`), then run
-**Actions → Set up server** again. Removing someone from the list signs them out.
-Ten wrong codes from one connection are blocked for an hour.
+```
+Developer ──(IMAM_ACCOUNT secret + Set up server)──► the imam's account
+Imam: signs in → chooses his own password → People → shares the invite code in person
+Helper: /admin.html → Request access (invite code, name, username, password) → waits
+Imam: 🔔 "New request for admin access" → People → Approve / Turn down
+Helper: signs in → open/close, reminder, announcements
+```
+
+- **Devices.** A helper's account works on one device: the one he signed up on. The imam's works on
+  two. Signing in anywhere else is blocked, and the imam gets a notification. In **People** he can
+  **Allow this device** (the old one is signed out) or ignore it. A "device" is one browser on one
+  phone. Clearing the browser's data or reinstalling the Home Screen app counts as a new device, so it
+  needs his OK again.
+- **People** shows everyone with access, their device(s) and when they were last active, with
+  **Remove access**, **Reset password** (shows a temporary password to give in person) and **Remove**
+  for a device. Removing signs the person out at once.
+- **Invite code.** Shown in People; **Make a new code** stops the old one working.
+- **Alerts on this phone** (in People) sends the imam a notification for new requests, blocked devices,
+  and accounts locked after 10 wrong passwords (locked for an hour).
+- **Imam locked out** (forgot his password, or lost both devices): put a new temporary password in the
+  `IMAM_ACCOUNT` secret, then **Actions → Set up server → Run workflow** with *Reset the imam's
+  password* ticked. His devices are cleared; he signs in again and chooses a new password.
+- Passwords are stored as salted PBKDF2 hashes; sign-ins last 30 days on a device while it is used.
+- The old `ADMIN_CODES` access codes work only until the imam's account is created, then stop.
 
 ## Notifications and sound
 
