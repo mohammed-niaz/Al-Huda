@@ -1,12 +1,16 @@
 // Sets up (or updates) everything Phase 2 needs on Cloudflare. Safe to run again at any time.
 // Run by .github/workflows/server.yml — needs these environment variables:
 //   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID   from your Cloudflare account
-//   ADMIN_CODES     {"Imam Name":"access-code", ...}   (GitHub secret)
+//   IMAM_ACCOUNT    {"name":"Imam Yusuf","username":"imam","password":"a-temporary-password"}   (GitHub secret)
+//                   creates the imam's account once; he chooses his own password at first sign-in
+//   RESET_IMAM      "true" = set the imam's password back to the one in IMAM_ACCOUNT (lost password / phones)
+//   ADMIN_CODES     old personal access codes, only used until IMAM_ACCOUNT is set (optional)
 //   PAGES_PROJECT   e.g. mesita-alhuda
 //   SITE_URL        e.g. https://mesita-alhuda.pages.dev
 import { execFileSync } from "node:child_process";
 import { writeFileSync, readFileSync, existsSync } from "node:fs";
 import { webcrypto as crypto } from "node:crypto";
+import { hashPassword, friendlyCode, USERNAME_RE, MIN_PASSWORD } from "../lib/password.js";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const SERVER = ROOT + "server/";
@@ -95,28 +99,64 @@ if (!haveKeys) {
   console.log("Created new notification keys");
 } else console.log("Notification keys already exist (kept)");
 
-// 4. imam access codes
-step("Imam access codes");
-let codes = {};
-try { codes = JSON.parse(process.env.ADMIN_CODES || "{}"); } catch (e) { fail('ADMIN_CODES must look like {"Imam Yusuf":"noor-sabr-1234-huda"} (straight double quotes).'); }
-const names = Object.keys(codes).filter((n) => String(codes[n]).length >= 8);
-if (!names.length) fail('Add the GitHub secret ADMIN_CODES, e.g. {"Imam Yusuf":"noor-sabr-1234-huda"}. Each code needs at least 8 characters.');
-let salt = query("SELECT value FROM kv WHERE key = 'admin_salt'")[0];
-salt = salt ? JSON.parse(salt.value) : Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString("hex");
-const hash = async (code) => Buffer.from(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${salt}:${code}`))).toString("hex");
-const stmts = [`INSERT OR REPLACE INTO kv (key, value) VALUES ('admin_salt', ${sqlStr(JSON.stringify(salt))})`, "DELETE FROM admins"];
-for (const n of names) stmts.push(`INSERT INTO admins (name, hash) VALUES (${sqlStr(n.slice(0, 60))}, ${sqlStr(await hash(String(codes[n])))})`);
-writeFileSync(SERVER + ".admins.sql", stmts.join(";\n") + ";\n");
-wrangler(["d1", "execute", DB_NAME, "--remote", "--file=.admins.sql", "-y"]);
-writeFileSync(SERVER + ".admins.sql", "");
-console.log(`Access codes saved for: ${names.join(", ")}`);
-
 // 5. notification worker
 step("Notification worker");
 wrangler(["deploy"]);
 console.log(`Deployed ${WORKER} (runs every minute, no public address)`);
 
-// 6. connect the Pages site to the database and the queue
+// 6. the imam's account (after the worker is deployed, so his alerts are already handled correctly)
+step("Imam account");
+const owner = query("SELECT id, username FROM users WHERE role = 'owner'")[0];
+let account = null;
+if (process.env.IMAM_ACCOUNT) {
+  try { account = JSON.parse(process.env.IMAM_ACCOUNT); } catch (e) { fail('IMAM_ACCOUNT must look like {"name":"Imam Yusuf","username":"imam","password":"a-temporary-password"} (straight double quotes).'); }
+  account.username = String(account.username || "").trim().toLowerCase();
+  account.name = String(account.name || "").trim().slice(0, 60);
+  if (!USERNAME_RE.test(account.username)) fail("In IMAM_ACCOUNT the username needs 3–30 small letters or numbers (dots, dashes and _ are fine, no spaces).");
+  if (account.name.length < 2) fail("In IMAM_ACCOUNT add the imam's name.");
+  if (String(account.password || "").length < MIN_PASSWORD) fail(`In IMAM_ACCOUNT the password needs at least ${MIN_PASSWORD} characters.`);
+}
+const reset = String(process.env.RESET_IMAM || "").toLowerCase() === "true";
+if (account && (!owner || reset)) {
+  const pass = await hashPassword(account.password), now = new Date().toISOString();
+  const stmts = [];
+  if (!owner) {
+    stmts.push(`INSERT INTO users (username, name, pass, role, status, must_change, max_devices, created, approved_at, approved_by) VALUES (${sqlStr(account.username)}, ${sqlStr(account.name)}, ${sqlStr(pass)}, 'owner', 'active', 1, 2, ${sqlStr(now)}, ${sqlStr(now)}, 'setup')`);
+    stmts.push(`INSERT OR IGNORE INTO kv (key, value) VALUES ('invite', ${sqlStr(JSON.stringify(friendlyCode()))})`);
+  } else {
+    // a fresh start for his account: temporary password, and his devices are forgotten
+    const id = owner.id;
+    stmts.push(`UPDATE users SET username = ${sqlStr(account.username)}, name = ${sqlStr(account.name)}, pass = ${sqlStr(pass)}, must_change = 1 WHERE id = ${id}`);
+    stmts.push(`DELETE FROM sessions WHERE user_id = ${id}`, `DELETE FROM admin_subs WHERE user_id = ${id}`, `DELETE FROM devices WHERE user_id = ${id}`, `DELETE FROM fails WHERE ip = ${sqlStr("u:" + account.username)}`);
+  }
+  stmts.push("DELETE FROM admins");             // the old access codes stop working
+  stmts.push(`INSERT INTO log (at, who, action) VALUES (${sqlStr(now)}, 'Setup', ${sqlStr(owner ? "Reset the imam's password and devices" : "Created the imam's account")})`);
+  writeFileSync(SERVER + ".account.sql", stmts.join(";\n") + ";\n");
+  wrangler(["d1", "execute", DB_NAME, "--remote", "--file=.account.sql", "-y"]);
+  writeFileSync(SERVER + ".account.sql", "");
+  console.log(owner
+    ? `Reset: ${account.username} signs in with the password from IMAM_ACCOUNT, then chooses a new one. His devices were cleared.`
+    : `Created the imam's account "${account.username}". He signs in with the password from IMAM_ACCOUNT, then chooses his own.`);
+} else if (owner) {
+  if (reset && !account) fail("To reset the imam's password, add the IMAM_ACCOUNT secret first.");
+  console.log(`The imam's account (${owner.username}) already exists — kept. To reset his password, run this job with "Reset the imam's password" ticked.`);
+} else {
+  let codes = {};
+  try { codes = JSON.parse(process.env.ADMIN_CODES || "{}"); } catch (e) { fail('ADMIN_CODES must look like {"Imam Yusuf":"noor-sabr-1234-huda"} (straight double quotes).'); }
+  const names = Object.keys(codes).filter((n) => String(codes[n]).length >= 8);
+  if (!names.length) fail('Add the GitHub secret IMAM_ACCOUNT, e.g. {"name":"Imam Yusuf","username":"imam","password":"a-temporary-password"}.');
+  let salt = query("SELECT value FROM kv WHERE key = 'admin_salt'")[0];
+  salt = salt ? JSON.parse(salt.value) : Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString("hex");
+  const hash = async (code) => Buffer.from(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${salt}:${code}`))).toString("hex");
+  const stmts = [`INSERT OR REPLACE INTO kv (key, value) VALUES ('admin_salt', ${sqlStr(JSON.stringify(salt))})`, "DELETE FROM admins"];
+  for (const n of names) stmts.push(`INSERT INTO admins (name, hash) VALUES (${sqlStr(n.slice(0, 60))}, ${sqlStr(await hash(String(codes[n])))})`);
+  writeFileSync(SERVER + ".admins.sql", stmts.join(";\n") + ";\n");
+  wrangler(["d1", "execute", DB_NAME, "--remote", "--file=.admins.sql", "-y"]);
+  writeFileSync(SERVER + ".admins.sql", "");
+  console.log(`No imam account yet (add the IMAM_ACCOUNT secret). Old access codes saved for: ${names.join(", ")}`);
+}
+
+// 7. connect the Pages site to the database and the queue
 step("Pages settings");
 const pagesToml = `# Generated by scripts/setup-server.mjs — connects the site's /api to the database and queue.
 # Cloudflare Pages reads this file on every deploy. Re-run "Set up server" instead of editing it.
