@@ -77,18 +77,20 @@ header.top {
 .top-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .dates { text-align: right; font-size: 0.85rem; color: var(--muted); line-height: 1.35; }
 .dates b { color: var(--ivory); font-weight: 600; }
-/* open/closed: a calm line under the chips; the hero's arch is the door and lights up when open */
+/* open/closed: a clear line under the chips; the hero's arch is the door: it glows green when open, red when closed */
 .status {
   position: relative; z-index: 1;
   display: inline-flex; align-items: center; gap: 8px;
-  margin-top: 16px; font-weight: 600; font-size: 1.05rem;
+  margin-top: 16px; font-weight: 600; font-size: 1.5rem; line-height: 1.2;
 }
-.status .door { flex: none; overflow: visible; width: 22px; height: 22px; }
+.status { gap: 12px; }
+.status .door { flex: none; overflow: visible; width: 40px; height: 40px; }
 .status small { font-size: inherit; font-weight: 500; color: var(--muted); }
 .status.open { color: var(--open); }
 .status.open .lit { animation: doorglow 2.6s ease-in-out infinite; }
 .status.open .door { filter: drop-shadow(0 0 5px rgba(99,211,148,0.7)); }
-.status.closed { color: var(--brass); }
+.status.closed { color: var(--closed); }
+.status.closed .door { filter: drop-shadow(0 0 7px rgba(231,118,106,0.75)); animation: redglow 2.8s ease-in-out infinite; }
 .status.closed .lit { opacity: 0.18; }
 /* the imam's closed message: its own small line, max two lines, so a long message never pushes the layout */
 .status-note {
@@ -97,6 +99,8 @@ header.top {
 }
 .status-note:empty { display: none; }
 @keyframes doorglow { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+@keyframes redglow { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+@keyframes archredglow { 50% { filter: drop-shadow(0 0 4px rgba(231,118,106,0.4)); } }
 @keyframes archglow { 50% { filter: drop-shadow(0 0 3px rgba(99,211,148,0.35)); } }
 
 /* announcement: two lines at most, cycles English / Slovak / Arabic, tap for all three */
@@ -149,6 +153,11 @@ header.top {
   border-color: rgba(99,211,148,0.6); border-width: 1.5px;
   filter: drop-shadow(0 0 8px rgba(99,211,148,0.55));
   animation: archglow 3.2s ease-in-out infinite;
+}
+.hero.is-closed::before {
+  border-color: rgba(231,118,106,0.65); border-width: 1.5px;
+  filter: drop-shadow(0 0 9px rgba(231,118,106,0.6));
+  animation: archredglow 3.2s ease-in-out infinite;
 }
 .eyebrow {
   font-size: 1rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--brass); font-weight: 700;
@@ -346,10 +355,11 @@ tr.sunrise td { padding-block: 4px; font-size: 0.82rem; }
   .bell { width: 36px; height: 36px; }
   .hero { padding: 14px 14px 14px; border-radius: 22px; }
   .hero::before { display: none; }
-  .status { margin-top: 8px; font-size: 0.95rem; }
-  .status .door { width: 18px; height: 18px; }
+  .status { margin-top: 8px; font-size: 1.2rem; gap: 10px; }
+  .status .door { width: 30px; height: 30px; }
   .hero { transition: border-color 1s ease, box-shadow 1s ease; }
   .hero.is-open { border-color: rgba(99,211,148,0.5); box-shadow: 0 0 22px -8px rgba(99,211,148,0.55); }
+  .hero.is-closed { border-color: rgba(231,118,106,0.55); box-shadow: 0 0 22px -8px rgba(231,118,106,0.6); }
   .hero .name { font-size: 2.1rem; margin: 4px 0 0; }
   .hero .arabic-name { display: none; }
   .alert-banner { flex-wrap: nowrap; justify-content: flex-start; gap: 8px; padding: 6px 8px 6px 12px; font-size: 0.82rem; }
@@ -983,6 +993,7 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
     const os = openState(n);
     $("status").className = "status " + (os.open ? "open" : "closed");
     document.querySelector(".hero").classList.toggle("is-open", os.open);
+    document.querySelector(".hero").classList.toggle("is-closed", !os.open);
     $("status-text").innerHTML = (os.open ? "Masjid open" : "Masjid closed") + (os.why ? ` <small>· ${esc(os.why)}</small>` : "");
     $("status-note").textContent = os.note || "";
 
