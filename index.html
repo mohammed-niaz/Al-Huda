@@ -814,9 +814,21 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
     const url = apple ? `https://maps.apple.com/?q=${q}` : `https://www.google.com/maps/search/?api=1&query=${q}`;
     $("loc-addr").textContent = C.address || "";
     $("loc-link").href = url;
+    // copies the street address only (never a link); falls back to a hidden text box where the clipboard API is blocked
     $("loc-copy").addEventListener("click", async () => {
-      try { await navigator.clipboard.writeText(C.address || ""); toast("Address copied", C.address || ""); }
-      catch (e) { toast("Couldn't copy", "Press and hold the address to copy it."); }
+      const text = C.address || "";
+      let ok = false;
+      try { await navigator.clipboard.writeText(text); ok = true; }
+      catch (e) {
+        try {
+          const t = document.createElement("textarea");
+          t.value = text; t.setAttribute("readonly", ""); t.style.cssText = "position:fixed;top:0;left:0;opacity:0";
+          document.body.append(t); t.select(); t.setSelectionRange(0, text.length);
+          ok = document.execCommand("copy"); t.remove();
+        } catch (_) {}
+      }
+      if (ok) toast("Address copied", text);
+      else toast("Couldn't copy", "Press and hold the address to copy it.");
     });
   }
   // ---------- announcement: two lines cycling English / Slovak / Arabic; tap opens all three ----------

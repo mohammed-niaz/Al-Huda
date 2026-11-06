@@ -7,8 +7,8 @@ window.MASJID_CONFIG = {
   // ---- Identity ------------------------------------------------
   name: "Mešita Al-huda",
   tagline: "Come to prayer. Come to success.",
-  address: "Košice, Slovakia",          // shown in the footer
-  mapQuery: "",                         // optional exact address/place for the Maps button; empty = name + address
+  address: "Rožňavská 323/10, 040 11 Košice, Slovakia",   // shown in the location window and copied by "Copy address"
+  mapQuery: "Mešita Al huda, Rožňavská 323/10, 040 11 Košice",   // what the "Get directions" button opens in Maps
   timezone: "Europe/Bratislava",
 
   // ---- Prayer times --------------------------------------------
