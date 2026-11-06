@@ -292,8 +292,14 @@ body { padding-block: 12px; }
 .ring-box .sub { font-size: max(1rem, min(6.5cqw, 6.5cqh)); }
 .tcard { display: flex; flex-direction: column; }
 .tabs { display: flex; gap: 4px; padding: 4px; margin-bottom: 12px; border-radius: 14px; background: rgba(241,233,214,0.05); border: 1px solid rgba(241,233,214,0.08); }
-.tabs button { flex: 1; padding: 9px 10px; border: none; background: none; color: var(--muted); font-size: 0.95rem; }
-.tabs button[aria-selected="true"] { background: var(--brass); color: var(--ground); }
+.tabs [role="tab"] { flex: 1; padding: 9px 10px; border: none; background: none; color: var(--muted); font-size: 0.95rem; }
+.tabs [role="tab"][aria-selected="true"] { background: var(--brass); color: var(--ground); }
+/* swap arrow between the two tabs: shows there is a second table and flips to it */
+.tabs { align-items: center; }
+.tab-swap { flex: none; width: 36px; height: 36px; padding: 0; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--brass); background: rgba(217,170,88,0.18); color: var(--brass-hi); }
+.tab-swap svg { width: 20px; height: 20px; }
+.tabs.swap-hint .tab-swap { animation: swapnudge 2.2s ease-in-out infinite; }
+@keyframes swapnudge { 0%, 100% { transform: translateX(0); box-shadow: 0 0 0 0 rgba(217,170,88,0.0); } 50% { transform: translateX(2px); box-shadow: 0 0 0 5px rgba(217,170,88,0.14); } }
 .disc { margin-top: 12px; font-size: 0.85rem; color: var(--brass-hi); font-weight: 500; }
 .disc:empty { display: none; }
 .change-note { margin-top: 12px; padding: 9px 12px; border-radius: 10px; border: 1px solid rgba(217,170,88,0.45); background: rgba(217,170,88,0.1); color: var(--ivory); font-size: 0.9rem; overflow-wrap: anywhere; }
@@ -386,7 +392,9 @@ tr.sunrise td { padding-block: 4px; font-size: 0.82rem; }
   td.t { font-size: 1rem; }
   td.t.big { font-size: 1.3rem; }
   .tabs { margin-bottom: 6px; }
-  .tabs button { padding: 6px 8px; font-size: 0.88rem; }
+  .tabs [role="tab"] { padding: 6px 8px; font-size: 0.88rem; }
+  .tab-swap { width: 30px; height: 30px; }
+  .tab-swap svg { width: 17px; height: 17px; }
   .verse-strip { padding: 9px 12px; gap: 8px; }
   .vs-ref { display: none; }
 }
@@ -571,8 +579,11 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
       </section>
 
       <section class="card tcard">
-        <div class="tabs" role="tablist">
+        <div class="tabs swap-hint" role="tablist" id="tabs">
           <button role="tab" id="tab-masjid" data-tab="masjid" aria-selected="true">At the Masjid</button>
+          <button class="tab-swap" id="tab-swap" type="button" aria-label="Switch between At the Masjid and Prayer Times">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h15M15 4l4 4-4 4"/><path d="M20 16H5M9 12l-4 4 4 4"/></svg>
+          </button>
           <button role="tab" id="tab-times" data-tab="times" aria-selected="false">Prayer Times</button>
         </div>
         <div class="tbl-wrap">
@@ -948,7 +959,10 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
   const RING = 565.49;
   let lastYmd = "", lastTableKey = "", userTab = "";
   // "At the Masjid" is the default tab until someone picks another
-  document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => { userTab = b.dataset.tab; tick(); }));
+  // the arrow between the tabs flips to the other table; it gently nudges until someone has used a tab
+  const pickTab = (t) => { userTab = t; $("tabs").classList.remove("swap-hint"); lastTableKey = ""; tick(); };
+  document.querySelectorAll('.tabs [role="tab"]').forEach((b) => b.addEventListener("click", () => pickTab(b.dataset.tab)));
+  $("tab-swap").addEventListener("click", () => pickTab((userTab || "masjid") === "masjid" ? "times" : "masjid"));
   function tick() {
     const n = now();
     const ymd = ymdOf(n);
