@@ -110,6 +110,15 @@ header.top {
   padding: 10px 16px; border-radius: 12px; font-weight: 500; text-align: left;
 }
 .announce[hidden] { display: none; }
+/* once read, the banner folds away into the glowing header icon (the masjid TV keeps showing it) */
+.announce.seen { display: none; }
+body.screen .announce.seen { display: flex; }
+.ann-btn[hidden] { display: none; }
+.ann-btn.live { color: var(--brass-hi); border-color: rgba(217,170,88,0.6); box-shadow: 0 0 9px 1px rgba(217,170,88,0.3); }
+.ann-btn.unread { animation: annglow 2.2s ease-in-out infinite; }
+.ann-dot { position: absolute; top: 7px; right: 8px; width: 9px; height: 9px; border-radius: 50%; background: var(--brass-hi); box-shadow: 0 0 6px 1px rgba(241,207,133,0.8); display: none; }
+.ann-btn.unread .ann-dot { display: block; }
+@keyframes annglow { 0%, 100% { box-shadow: 0 0 6px 0 rgba(217,170,88,0.35); } 50% { box-shadow: 0 0 16px 4px rgba(217,170,88,0.75); } }
 .an-label { flex: none; font-size: 0.68rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--brass); font-weight: 700; }
 .an-text {
   flex: 1; min-width: 0; line-height: 1.4; overflow-wrap: anywhere; transition: opacity .4s ease;
@@ -496,6 +505,11 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
     </div>
     <div class="dates"><b id="d-greg">—</b><span class="sep"> · </span><span id="d-hijri">—</span></div>
     <div class="top-right">
+      <!-- announcement: glows while one is live (strongly until it has been read) -->
+      <button class="bell ann-btn" id="ann-btn" aria-label="Announcement" aria-haspopup="dialog" hidden>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10v4h4l6 4V6L7 10z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>
+        <i class="ann-dot"></i>
+      </button>
       <button class="bell" id="pin" aria-label="Location" aria-haspopup="true" aria-expanded="false">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>
       </button>
@@ -840,15 +854,33 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
   }
   // ---------- announcement: two lines cycling English / Slovak / Arabic; tap opens all three ----------
   const LANGS = [["en", "English"], ["sk", "Slovensky"], ["ar", "العربية"]];
-  let notice = [], noticeKey = "", noticeIdx = 0;
+  let notice = [], noticeKey = "", noticeIdx = 0, annId = "";
+  // read state is per phone: the banner shows until the announcement is opened, then only the glowing icon stays
+  const SEEN_KEY = "masjid-ann-seen";
+  let annSeen = ""; try { annSeen = localStorage.getItem(SEEN_KEY) || ""; } catch (e) {}
+  const hashOf = (s) => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return String(h); };
+  function paintAnn() {
+    const has = notice.length > 0, unread = has && annSeen !== annId;
+    $("ann-btn").hidden = !has;
+    $("ann-btn").classList.toggle("live", has);
+    $("ann-btn").classList.toggle("unread", unread);
+    $("announce").classList.toggle("seen", has && !unread);
+  }
+  function markAnnSeen() {
+    annSeen = annId;
+    try { localStorage.setItem(SEEN_KEY, annSeen); } catch (e) {}
+    paintAnn();
+  }
   function setAnnouncement(a) {
     if (typeof a === "string") a = { en: a };
     notice = LANGS.filter(([k]) => a && a[k] && a[k].trim()).map(([k, label]) => ({ k, label, text: a[k].trim() }));
     const key = JSON.stringify(notice);
     if (key === noticeKey) return;
     noticeKey = key; noticeIdx = 0;
+    annId = hashOf(key);                                   // a new or edited announcement counts as unread again
     $("announce").hidden = !notice.length;
     document.body.classList.toggle("has-announce", notice.length > 0);
+    paintAnn();
     $("an-all").innerHTML = "";
     notice.forEach((x) => {
       const item = document.createElement("div"); item.className = "an-item";
@@ -1157,7 +1189,9 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
   $("verse-x").addEventListener("click", () => (sheet.hidden = true));
   sheet.addEventListener("click", (e) => { if (e.target === sheet) sheet.hidden = true; });
   const anSheet = $("an-sheet");
-  $("announce").addEventListener("click", (e) => { e.stopPropagation(); setPanel(null); anSheet.hidden = false; $("an-x").focus(); });
+  const openAnnouncement = (e) => { e.stopPropagation(); setPanel(null); anSheet.hidden = false; $("an-x").focus(); markAnnSeen(); };
+  $("announce").addEventListener("click", openAnnouncement);
+  $("ann-btn").addEventListener("click", openAnnouncement);
   $("an-x").addEventListener("click", () => (anSheet.hidden = true));
   anSheet.addEventListener("click", (e) => { if (e.target === anSheet) anSheet.hidden = true; });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") { setPanel(null); sheet.hidden = true; anSheet.hidden = true; } });
