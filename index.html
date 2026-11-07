@@ -103,16 +103,16 @@ header.top {
 @keyframes archredglow { 50% { filter: drop-shadow(0 0 4px rgba(231,118,106,0.4)); } }
 @keyframes archglow { 50% { filter: drop-shadow(0 0 3px rgba(99,211,148,0.35)); } }
 
-/* announcement: two lines at most, cycles English / Slovak / Arabic, tap for all three */
+/* announcement: a strip cycling English / Slovak / Arabic. On phones/desktop it only ever runs on
+   the masjid TV (screen mode), where nobody is there to close a popup; everyone else gets the
+   center popup below, and afterwards the glowing header icon. */
 .announce {
-  display: flex; align-items: center; gap: 12px; width: 100%;
+  display: none; align-items: center; gap: 12px; width: 100%;
   border: 1px solid var(--line); background: rgba(217,170,88,0.08); color: var(--brass-hi);
   padding: 10px 16px; border-radius: 12px; font-weight: 500; text-align: left;
 }
 .announce[hidden] { display: none; }
-/* once read, the banner folds away into the glowing header icon (the masjid TV keeps showing it) */
-.announce.seen { display: none; }
-body.screen .announce.seen { display: flex; }
+body.screen .announce:not([hidden]) { display: flex; }
 .ann-btn[hidden] { display: none; }
 .ann-btn.live { color: var(--brass-hi); border-color: rgba(217,170,88,0.6); box-shadow: 0 0 9px 1px rgba(217,170,88,0.3); }
 .ann-btn.unread { animation: annglow 2.2s ease-in-out infinite; }
@@ -453,6 +453,31 @@ body.screen .screen-btn { opacity: 0.35; }
 .toast.t-open .ic { background: rgba(99,211,148,0.16); color: var(--open); }
 .toast.t-closed .ic { background: rgba(231,118,106,0.16); color: var(--closed); }
 
+/* announcement popup: same centered card as the toast, but it stays until someone closes it */
+.ann-toast {
+  position: fixed; left: 50%; top: 50%; z-index: 41;
+  transform: translate(-50%, -50%) scale(0.92);
+  width: min(340px, calc(100% - 48px));
+  display: grid; gap: 10px; justify-items: center; text-align: center;
+  padding: 26px 24px 22px; border-radius: 22px;
+  background: #0d2629; border: 1px solid rgba(217,170,88,0.5);
+  box-shadow: 0 26px 70px -18px rgba(0,0,0,0.85);
+  color: var(--ivory); font-weight: 600; font-size: 1.1rem; line-height: 1.4;
+  opacity: 0; visibility: hidden; pointer-events: none; cursor: pointer;
+  transition: opacity .25s ease, transform .25s ease, visibility .25s;
+}
+.ann-toast:not([hidden]) { opacity: 1; visibility: visible; pointer-events: auto; transform: translate(-50%, -50%) scale(1); }
+.ann-toast .ic { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: rgba(217,170,88,0.18); color: var(--brass-hi); }
+.ann-toast .ic svg { width: 26px; height: 26px; }
+.ann-toast .an-label { font-size: 0.68rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--brass); font-weight: 700; }
+.ann-toast .an-text { font-size: 1.1rem; -webkit-line-clamp: 4; line-clamp: 4; }
+.ann-toast .an-more { color: var(--muted); font-size: 0.8rem; font-weight: 500; }
+.ann-toast-x {
+  position: absolute; top: 10px; right: 10px; width: 32px; height: 32px; padding: 0; border: none;
+  border-radius: 50%; background: rgba(241,233,214,0.08); color: var(--muted); font-size: 0.95rem; cursor: pointer;
+}
+.ann-toast-x:hover, .ann-toast-x:focus-visible { background: rgba(241,233,214,0.16); color: var(--ivory); }
+
 /* TV / screen mode: bigger everything */
 body.screen { font-size: 18px; }
 body.screen .alert-panel, body.screen .alert-banner { display: none; }
@@ -643,6 +668,17 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
 </div>
 
 <div class="toast" id="toast" role="status"></div>
+
+<!-- announcement: shown first as a popup like the one above, but it stays until closed -->
+<div class="ann-toast" id="ann-toast" role="alertdialog" aria-modal="true" aria-label="Announcement" hidden>
+  <button class="ann-toast-x" id="ann-toast-x" aria-label="Close">✕</button>
+  <span class="ic">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="4.2" cy="10.5" rx="1.5" ry="5.7"/><path d="M4.2 4.8 14.6 7.9M4.2 16.2 14.6 13.1"/><rect x="14.6" y="7.9" width="5.2" height="5.2" rx="1.7"/><path d="M16.9 13.1v2.3a1.5 1.5 0 0 1-3 0"/></svg>
+  </span>
+  <span class="an-label">Notice</span>
+  <span class="an-text" id="annp-text"></span>
+  <span class="an-more">Tap to read in full</span>
+</div>
 
 <script src="config.js"></script>
 <script src="data/verses.js"></script>
@@ -876,7 +912,8 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
     $("ann-btn").hidden = !has;
     $("ann-btn").classList.toggle("live", has);
     $("ann-btn").classList.toggle("unread", unread);
-    $("announce").classList.toggle("seen", has && !unread);
+    // a new announcement's first appearance is this popup; the masjid TV has nobody to close it, so it skips straight to the banner
+    $("ann-toast").hidden = !unread || document.body.classList.contains("screen");
   }
   function markAnnSeen() {
     annSeen = annId;
@@ -902,15 +939,16 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
     });
     showNotice();
   }
+  // drives both the popup and the masjid-TV banner (the two places the text is ever shown)
+  const ANN_TEXTS = () => [$("an-text"), $("annp-text")].filter(Boolean);
   function showNotice() {
     const x = notice[noticeIdx]; if (!x) return;
-    $("an-text").textContent = x.text;
-    $("an-text").lang = x.k; $("an-text").dir = x.k === "ar" ? "rtl" : "ltr";
+    ANN_TEXTS().forEach((el) => { el.textContent = x.text; el.lang = x.k; el.dir = x.k === "ar" ? "rtl" : "ltr"; });
   }
   setInterval(() => {
     if (notice.length < 2) return;
-    $("an-text").classList.add("fade");
-    setTimeout(() => { noticeIdx = (noticeIdx + 1) % notice.length; showNotice(); $("an-text").classList.remove("fade"); }, 400);
+    ANN_TEXTS().forEach((el) => el.classList.add("fade"));
+    setTimeout(() => { noticeIdx = (noticeIdx + 1) % notice.length; showNotice(); ANN_TEXTS().forEach((el) => el.classList.remove("fade")); }, 400);
   }, 7000);
   renderAnnouncement();
 
@@ -1220,13 +1258,19 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
   $("verse-strip").addEventListener("click", (e) => { e.stopPropagation(); setPanel(null); sheet.hidden = false; $("verse-x").focus(); });
   $("verse-x").addEventListener("click", () => (sheet.hidden = true));
   sheet.addEventListener("click", (e) => { if (e.target === sheet) sheet.hidden = true; });
-  const anSheet = $("an-sheet");
-  const openAnnouncement = (e) => { e.stopPropagation(); setPanel(null); anSheet.hidden = false; $("an-x").focus(); markAnnSeen(); };
+  const anSheet = $("an-sheet"), annToast = $("ann-toast");
+  const openAnnouncement = (e) => { e.stopPropagation(); setPanel(null); annToast.hidden = true; anSheet.hidden = false; $("an-x").focus(); markAnnSeen(); };
   $("announce").addEventListener("click", openAnnouncement);
   $("ann-btn").addEventListener("click", openAnnouncement);
+  annToast.addEventListener("click", openAnnouncement);
+  $("ann-toast-x").addEventListener("click", (e) => { e.stopPropagation(); markAnnSeen(); });   // close without reading all languages
   $("an-x").addEventListener("click", () => (anSheet.hidden = true));
   anSheet.addEventListener("click", (e) => { if (e.target === anSheet) anSheet.hidden = true; });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { setPanel(null); sheet.hidden = true; anSheet.hidden = true; } });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    setPanel(null); sheet.hidden = true; anSheet.hidden = true;
+    if (!annToast.hidden) markAnnSeen();
+  });
   // masjid TV: nobody taps, so the strip alternates English and Arabic
   setInterval(() => {
     $("verse-strip").classList.toggle("show-ar", document.body.classList.contains("screen") && !!$("vs-ar").textContent && !$("verse-strip").classList.contains("show-ar"));
@@ -1270,6 +1314,7 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
     try { if (on && navigator.wakeLock) wake = await navigator.wakeLock.request("screen"); else if (wake) { wake.release(); wake = null; } } catch (e) {}
     $("b-screen").setAttribute("aria-label", on ? "Exit screen mode" : "Masjid screen mode");
     $("b-screen").title = on ? "Exit screen mode" : "Masjid screen mode";
+    paintAnn();   // the TV has nobody to close the popup, so it switches straight to the always-on banner
   });
 
   // ---------- boot ----------
