@@ -808,7 +808,8 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
     const o = C.openStatus || {};
     // the status line stays short (label + time); any free-text message goes on its own line below
     const label = open && !manual ? (wins.find((w) => n >= w.from && n < w.to) || {}).label : "";
-    const time = change ? (open ? `until ${hm(change)}` : `opens at ${hm(change)}`) : "";
+    // past midnight, say "tomorrow" so a late opening time (e.g. set after Isha) doesn't look like it's today
+    const time = change ? (open ? `until ${hm(change)}` : `opens ${ymdOf(change) !== ymdOf(n) ? "tomorrow " : ""}at ${hm(change)}`) : "";
     const why = [label, time].filter(Boolean).join(" · ");
     const note = manual ? SERVER.override.message || "" : (!open && o.closedMessage) || "";
     return { open, why, note, until: change, manual };
