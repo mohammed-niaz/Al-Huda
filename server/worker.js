@@ -33,30 +33,23 @@ async function loadSchedule(env) {
   return createSchedule({ config, table, adhan, jamaah });
 }
 
-// ---- every minute: put due adhan / reminder notifications into the outbox ----
+// ---- every minute: put due adhan notifications into the outbox ----
+// One per prayer, at the adhan. Open/closed, news and the reminder of the day are sent by the imam.
 async function queueDueAdhans(env, minute) {
   const S = await loadSchedule(env);
-  const N = S.config.notifications || {};
   const inMinute = (d) => d && d.getTime() >= minute && d.getTime() < minute + 60000;
   const rows = [];
   for (const p of S.timeline(new Date(minute))) {
-    if (inMinute(p.adhan)) {
-      rows.push({
-        id: `adhan-${p.ymd}-${p.key}`,
-        // only prayers the imam ticked as held at the masjid mention the iqamah
-        payload: p.name === "Jumu'ah"
-          ? { title: "Jumu'ah — the khutbah is starting", body: `Iqamah at ${S.hm(p.iqamah)}. Come to the masjid.`, tag: "adhan", kind: "adhan", url: "./" }
-          : { title: `${p.name} — adhan`, body: p.atMasjid ? `Iqamah at ${S.hm(p.iqamah)}. Come to the masjid.` : `It is time for ${p.name}.`, tag: "adhan", kind: "adhan", url: "./" },
-        opts: { ttl: Math.max(120, Math.round((p.iqamah - p.adhan) / 1000) + 300), urgency: "high", topic: "adhan" }
-      });
-    }
-    if (N.reminderBeforeAdhan && inMinute(S.addMin(p.adhan, -N.reminderBeforeAdhan))) {
-      rows.push({
-        id: `remind-${p.ymd}-${p.key}`,
-        payload: { title: `${p.name} in ${N.reminderBeforeAdhan} minutes`, body: p.atMasjid ? `Adhan ${S.hm(p.adhan)} · Iqamah ${S.hm(p.iqamah)}. Make wudu and head to the masjid.` : `Adhan at ${S.hm(p.adhan)}.`, tag: "adhan", kind: "reminder", url: "./" },
-        opts: { ttl: N.reminderBeforeAdhan * 60, urgency: "high", topic: "adhan" }
-      });
-    }
+    if (!inMinute(p.adhan)) continue;
+    // only prayers the imam ticked as held at the masjid have an iqamah
+    const mins = Math.round((p.iqamah - p.adhan) / 60000);
+    const body = !p.atMasjid ? "Time to pray."
+      : mins > 0 ? `Iqamah is in ${mins} minute${mins === 1 ? "" : "s"}.` : "The jama'ah is standing now.";
+    rows.push({
+      id: `adhan-${p.ymd}-${p.key}`,
+      payload: { title: `It's time for ${p.name}`, body, tag: "adhan", kind: "adhan", url: "./" },
+      opts: { ttl: Math.max(120, Math.round((p.iqamah - p.adhan) / 1000) + 300), urgency: "high", topic: "adhan" }
+    });
   }
   for (const r of rows) {
     // INSERT OR IGNORE: the id is fixed per prayer, so it is never sent twice

@@ -62,9 +62,9 @@ window.MASJID_CONFIG = {
   },
 
   // ---- Notifications -------------------------------------------
+  // Sent: the adhan ("It's time for Dhuhr · Iqamah is in 10 minutes"), the masjid
+  // opening and closing, and the imam's news. Nothing else.
   notifications: {
-    reminderBeforeAdhan: 10,           // minutes; 0 to switch off
-    iqamahAlert: true,                 // alert when iqamah is about to start
     adhanAudio: ""                     // URL of an adhan .mp3 you have rights to; empty = soft chime
   },
 

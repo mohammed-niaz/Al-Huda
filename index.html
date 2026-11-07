@@ -432,17 +432,26 @@ body.screen .screen-btn { opacity: 0.35; }
 @keyframes s-base { to { transform: scaleX(1); } }
 @keyframes s-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
-/* toast */
+/* in-app popup: a small card in the middle of the screen that fades away after a few seconds */
 .toast {
-  position: fixed; left: 50%; transform: translate(-50%, 140%);
-  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
-  width: min(440px, calc(100% - 32px));
-  background: var(--brass); color: var(--ground); border-radius: 16px; padding: 14px 18px;
-  font-weight: 600; box-shadow: 0 20px 50px -10px rgba(0,0,0,0.6); transition: transform .35s ease, visibility .35s; z-index: 20;
-  visibility: hidden;
+  position: fixed; left: 50%; top: 50%; z-index: 40;
+  transform: translate(-50%, -50%) scale(0.92);
+  width: min(320px, calc(100% - 48px));
+  display: grid; gap: 12px; justify-items: center; text-align: center;
+  padding: 22px 22px 20px; border-radius: 22px;
+  background: #0d2629; border: 1px solid var(--line);
+  box-shadow: 0 26px 70px -18px rgba(0,0,0,0.85);
+  color: var(--ivory); font-weight: 600; font-size: 1.1rem; line-height: 1.3;
+  opacity: 0; visibility: hidden; pointer-events: none; cursor: pointer;
+  transition: opacity .25s ease, transform .25s ease, visibility .25s;
 }
-.toast.show { transform: translate(-50%, 0); visibility: visible; }
-.toast small { display: block; font-weight: 500; opacity: 0.8; }
+.toast.show { opacity: 1; visibility: visible; pointer-events: auto; transform: translate(-50%, -50%) scale(1); }
+.toast .ic { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: rgba(217,170,88,0.14); color: var(--brass); }
+.toast .ic svg { width: 28px; height: 28px; }
+.toast small { display: block; margin-top: 4px; font-weight: 500; font-size: 0.95rem; color: var(--muted); }
+.toast.t-adhan .ic { background: rgba(217,170,88,0.18); color: var(--brass-hi); }
+.toast.t-open .ic { background: rgba(99,211,148,0.16); color: var(--open); }
+.toast.t-closed .ic { background: rgba(231,118,106,0.16); color: var(--closed); }
 
 /* TV / screen mode: bigger everything */
 body.screen { font-size: 18px; }
@@ -507,7 +516,7 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
     <div class="top-right">
       <!-- announcement: glows while one is live (strongly until it has been read) -->
       <button class="bell ann-btn" id="ann-btn" aria-label="Announcement" aria-haspopup="dialog" hidden>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10v4h4l6 4V6L7 10z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="4.2" cy="10.5" rx="1.5" ry="5.7"/><path d="M4.2 4.8 14.6 7.9M4.2 16.2 14.6 13.1"/><rect x="14.6" y="7.9" width="5.2" height="5.2" rx="1.7"/><path d="M16.9 13.1v2.3a1.5 1.5 0 0 1-3 0"/></svg>
         <i class="ann-dot"></i>
       </button>
       <button class="bell" id="pin" aria-label="Location" aria-haspopup="true" aria-expanded="false">
@@ -535,7 +544,7 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
           <button id="b-test">Test alert</button>
         </div>
         <div class="opts" id="alert-opts" hidden>
-          <label><input type="checkbox" id="o-adhan" checked> Adhan, and a reminder 10 minutes before</label>
+          <label><input type="checkbox" id="o-adhan" checked> Adhan, with the iqamah time</label>
           <label><input type="checkbox" id="o-status" checked> Masjid open / closed, reminder of the day and news from the imam</label>
         </div>
         <div class="state-line" id="alert-state">Alerts are off on this device.</div>
@@ -761,6 +770,7 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
   }
   // ---------- open / closed: the timetable in config.js + the imam's change from the server ----------
   let SERVER = { override: null, announcement: null, reminder: null, jamaah: null };
+  let stateTried = false;      // true once the first fetch of the imam's settings has finished (or failed)
   function openWindows(n) {
     const o = C.openStatus || {};
     const before = o.opensBeforeDhuhr ?? 20, after = o.closesAfterIsha ?? 30;
@@ -819,6 +829,7 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
       SERVER = { override: d.override || null, announcement: d.announcement || null, reminder: d.reminder || null, jamaah };
       renderAnnouncement(); renderVerse(now()); tick();
     } catch (e) { /* offline: keep showing the timetable */ }
+    stateTried = true;
   }
   // the imam posts { en, sk, ar } from admin.html; older posts only have { text }
   function renderAnnouncement() {
@@ -1125,16 +1136,32 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
       const a = new Audio(C.notifications.adhanAudio); a.play().catch(chime);
     } else chime();
   }
+  // in-app popup: icon + one line, in the middle of the screen, gone in a few seconds (tap to close)
+  const ICONS = {
+    door: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 21.5V10a7.5 7.5 0 0 1 15 0v11.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8 21.5V11a4 4 0 0 1 8 0v10.5z" fill="currentColor"/></svg>',
+    megaphone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="4.2" cy="10.5" rx="1.5" ry="5.7"/><path d="M4.2 4.8 14.6 7.9M4.2 16.2 14.6 13.1"/><rect x="14.6" y="7.9" width="5.2" height="5.2" rx="1.7"/><path d="M16.9 13.1v2.3a1.5 1.5 0 0 1-3 0"/></svg>',
+    clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+    book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5z"/><path d="M12 6.5v13"/></svg>',
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5 9.5 18 20 6.5"/></svg>'
+  };
   let toastTimer;
-  function toast(title, body) {
-    $("toast").innerHTML = `${title}<small>${body}</small>`;
-    $("toast").classList.add("show");
-    clearTimeout(toastTimer); toastTimer = setTimeout(() => $("toast").classList.remove("show"), 9000);
+  function toast(title, body, kind) {
+    const t = $("toast");
+    const icon = kind === "news" ? ICONS.megaphone : kind === "iqamah-change" ? ICONS.clock
+      : kind === "reminder-of-day" ? ICONS.book : (kind === "adhan" || kind === "status") ? ICONS.door : ICONS.check;
+    const tone = kind === "adhan" ? " t-adhan"
+      : kind === "status" ? (/closed/i.test(`${title} ${body}`) ? " t-closed" : " t-open") : "";
+    t.className = "toast" + tone;
+    t.innerHTML = `<span class="ic">${icon}</span><span>${esc(title)}${body ? `<small>${esc(body)}</small>` : ""}</span>`;
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), kind ? 4500 : 2500);
   }
+  $("toast").addEventListener("click", () => { clearTimeout(toastTimer); $("toast").classList.remove("show"); });
   async function notify(title, body, kind) {
-    toast(title, body);
+    toast(title, body, kind);
     sound(kind);
-    if (prefs.push && (kind === "adhan" || kind === "reminder")) return;   // the server's push already shows it
+    if (prefs.push && kind === "adhan") return;   // the server's push already shows it
     if (!("Notification" in window) || Notification.permission !== "granted") return;
     const opts = { body, icon: "icons/icon-192.png", badge: "icons/icon-192.png", tag: kind + title, renotify: true, silent: false, vibrate: [300, 150, 300] };
     try {
@@ -1142,14 +1169,18 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
       else new Notification(title, opts);
     } catch (e) { try { new Notification(title, opts); } catch (_) {} }
   }
+  // one alert per prayer, at the adhan. Open/closed, news and the reminder of the day come from the imam.
+  const iqamahLine = (p) => {
+    if (!p.atMasjid) return "Time to pray.";
+    const m = Math.round((p.iqamah - p.adhan) / 60000);
+    return m > 0 ? `Iqamah is in ${m} minute${m === 1 ? "" : "s"}.` : "The jama'ah is standing now.";
+  };
   function checkAlerts(n) {
-    if (!alertsOn) return;
-    const N = C.notifications || {};
+    // wait for the imam's settings, so the adhan alert knows the right iqamah time
+    if (!alertsOn || !stateTried) return;
     const evs = [];
     for (const p of timeline(n)) {
-      evs.push({ id: "a" + p.ymd + p.key, at: p.adhan, kind: "adhan", title: `${p.name} — adhan`, body: p.atMasjid ? `Iqamah at ${hm(p.iqamah)}. Come to the masjid.` : `It is time for ${p.name}.` });
-      if (N.reminderBeforeAdhan) evs.push({ id: "r" + p.ymd + p.key, at: addMin(p.adhan, -N.reminderBeforeAdhan), kind: "reminder", title: `${p.name} in ${N.reminderBeforeAdhan} minutes`, body: `Adhan ${hm(p.adhan)} · Iqamah ${hm(p.iqamah)}` });
-      if (N.iqamahAlert && p.atMasjid) { const lead = Math.min(1, (p.iqamah - p.adhan) / 120000); if (lead > 0 && p.iqamah - p.adhan > 90000) evs.push({ id: "i" + p.ymd + p.key, at: addMin(p.iqamah, -lead), kind: "iqamah", title: `${p.name} — iqamah in 1 minute`, body: "The jama'ah is about to stand." }); }
+      evs.push({ id: "a" + p.ymd + p.key, at: p.adhan, kind: "adhan", title: `It's time for ${p.name}`, body: iqamahLine(p) });
     }
     for (const e of evs) {
       const d = n - e.at;
@@ -1251,7 +1282,7 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
           const d = (e.data && e.data.type === "push" && e.data.data) || null;
           if (!d || d.kind === "adhan" || d.kind === "reminder") return;   // the timetable already handles these on screen
           refreshState();
-          if (document.visibilityState === "visible") { toast(d.title || "", d.body || ""); chime(); }
+          if (document.visibilityState === "visible") { toast(d.title || "", d.body || "", d.kind || "status"); chime(); }
         });
       } catch (e) { swReg = null; }
     }
