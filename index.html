@@ -87,9 +87,9 @@ header.top {
 .status small { font-size: inherit; font-weight: 500; color: var(--muted); }
 .status.open { color: var(--open); }
 .status.open .lit { animation: doorglow 2.6s ease-in-out infinite; }
-.status.open .door { filter: drop-shadow(0 0 5px rgba(99,211,148,0.7)); }
+.status.open .door { animation: doorpulse-open 2.6s ease-in-out infinite; }
 .status.closed { color: var(--closed); }
-.status.closed .door { filter: drop-shadow(0 0 7px rgba(231,118,106,0.75)); animation: redglow 2.8s ease-in-out infinite; }
+.status.closed .door { animation: doorpulse-closed 2.6s ease-in-out infinite; }
 .status.closed .lit { opacity: 0.18; }
 /* the imam's closed message: its own small line, max two lines, so a long message never pushes the layout */
 .status-note {
@@ -98,7 +98,15 @@ header.top {
 }
 .status-note:empty { display: none; }
 @keyframes doorglow { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
-@keyframes redglow { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+/* the door's own glow brightens and dims, not just the lamp inside it — a stronger, more visible pulse */
+@keyframes doorpulse-open {
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(99,211,148,0.55)); }
+  50% { filter: drop-shadow(0 0 14px rgba(99,211,148,1)) drop-shadow(0 0 24px rgba(99,211,148,0.6)); }
+}
+@keyframes doorpulse-closed {
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(231,118,106,0.55)); }
+  50% { filter: drop-shadow(0 0 14px rgba(231,118,106,1)) drop-shadow(0 0 24px rgba(231,118,106,0.65)); }
+}
 @keyframes archredglow { 50% { filter: drop-shadow(0 0 4px rgba(231,118,106,0.4)); } }
 @keyframes archglow { 50% { filter: drop-shadow(0 0 3px rgba(99,211,148,0.35)); } }
 
