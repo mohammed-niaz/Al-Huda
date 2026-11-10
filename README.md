@@ -94,11 +94,13 @@ Imam: 🔔 "New request for admin access" → People → Approve / Turn down
 Helper: signs in → open/close, reminder, announcements
 ```
 
-- **Devices.** A helper's account works on one device: the one he signed up on. The imam's works on
-  two. Signing in anywhere else is blocked, and the imam gets a notification. In **People** he can
-  **Allow this device** (the old one is signed out) or ignore it. A "device" is one browser on one
-  phone. Clearing the browser's data or reinstalling the Home Screen app counts as a new device, so it
-  needs his OK again.
+- **Devices.** Each account works on a limited number of devices at once — a new setup gives a helper
+  1 and the imam 3. Signing in on one more than that is blocked, and the imam gets a notification; in
+  **People** he can **Allow this device** (the oldest one is signed out to make room) or ignore it. A
+  "device" is one browser on one phone. Clearing the browser's data or reinstalling the Home Screen app
+  counts as a new device, so it needs his OK again. The **Devices allowed** +/− next to each person in
+  **People** changes that limit at any time, including his own; lowering it below the number already
+  in use signs the oldest ones out straight away.
 - **People** shows everyone with access, their device(s) and when they were last active, with
   **Remove access**, **Reset password** (shows a temporary password to give in person) and **Remove**
   for a device. Removing signs the person out at once.

@@ -105,6 +105,11 @@ ul.people .who small, ul.people .meta { color: var(--muted); font-size: 0.82rem;
 ul.people .dev { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 0.86rem; color: var(--ivory); padding-top: 6px; border-top: 1px dashed var(--line); }
 ul.people .dev small { color: var(--dim); display: block; }
 ul.people .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+ul.people .maxdev { display: flex; align-items: center; gap: 10px; font-size: 0.86rem; color: var(--muted); padding-top: 6px; border-top: 1px dashed var(--line); }
+ul.people .maxdev span { flex: 1; }
+ul.people .maxdev button { width: 2rem; height: 2rem; padding: 0; border-radius: 50%; font-size: 1.1rem; font-weight: 700; line-height: 1; }
+ul.people .maxdev button:disabled { opacity: 0.35; cursor: default; }
+ul.people .maxdev b { min-width: 1.2em; text-align: center; color: var(--ivory); font-size: 1rem; }
 ul.people .acts button, ul.people .dev button { padding: 8px 12px; font-size: 0.88rem; }
 ul.people .empty { background: none; border: none; padding: 0; color: var(--dim); font-size: 0.9rem; }
 ul.people .temp { font-size: 0.92rem; color: var(--open); }
@@ -941,9 +946,12 @@ function renderPeople() {
     const owner = u.role === "owner";
     const devs = u.devices.map((d) => `<div class="dev"><span>${esc(d.label)}${d.thisDevice ? " (this one)" : ""}<small>added ${esc(day(d.created))} · last used ${esc(ago(d.lastSeen))}</small></span>${d.thisDevice ? "" : `<button data-act="remove-device" data-device="${esc(d.id)}" data-name="${esc(d.label)}">Remove</button>`}</div>`).join("")
       || `<div class="dev"><span>No device yet<small>${owner ? "" : "The first device they sign in on becomes theirs."}</small></span></div>`;
+    // how many devices this person can sign in on at once; a lower number signs out the oldest extra device
+    const maxDev = `<div class="maxdev"><span>Devices allowed</span><button data-act="max-devices" data-user="${u.id}" data-max="${u.maxDevices - 1}" ${u.maxDevices <= 1 ? "disabled" : ""} aria-label="Fewer devices">−</button><b>${u.maxDevices}</b><button data-act="max-devices" data-user="${u.id}" data-max="${u.maxDevices + 1}" ${u.maxDevices >= 10 ? "disabled" : ""} aria-label="More devices">+</button></div>`;
     return `<li>
-      <div class="who"><b>${esc(u.name)} ${owner ? '<span class="badge">Imam</span>' : ""}</b><small>${esc(u.username)}${owner ? ` · up to ${u.maxDevices} devices` : u.approvedAt ? ` · approved ${esc(day(u.approvedAt))}${u.approvedBy ? ` by ${esc(u.approvedBy)}` : ""}` : ""}</small></div>
+      <div class="who"><b>${esc(u.name)} ${owner ? '<span class="badge">Imam</span>' : ""}</b><small>${esc(u.username)}${!owner && u.approvedAt ? ` · approved ${esc(day(u.approvedAt))}${u.approvedBy ? ` by ${esc(u.approvedBy)}` : ""}` : ""}</small></div>
       ${devs}
+      ${maxDev}
       ${tempPass[u.id] ? `<div class="temp">Temporary password: <code>${esc(tempPass[u.id])}</code><br><small>Tell it to ${esc(u.name)} in person. They choose their own when they sign in.</small></div>` : ""}
       ${owner ? "" : `<div class="acts"><button data-act="reset" data-user="${u.id}" data-name="${esc(u.name)}">Reset password</button><button class="b-danger" data-act="remove" data-user="${u.id}" data-name="${esc(u.name)}">Remove access</button></div>`}
     </li>`;
@@ -960,7 +968,7 @@ const CONFIRM = {
   reset: (n) => `Reset ${n}'s password? They are signed out and get a temporary password from you.`,
   "remove-device": (n) => `Remove ${n}? It is signed out, and that person must sign in again on an allowed device.`
 };
-const DONE = { approve: "Approved. They can sign in now.", reject: "Request turned down.", remove: "Access removed.", "remove-device": "Device removed.", "allow-device": "Device allowed. They can sign in on it now.", dismiss: "" };
+const DONE = { approve: "Approved. They can sign in now.", reject: "Request turned down.", remove: "Access removed.", "remove-device": "Device removed.", "allow-device": "Device allowed. They can sign in on it now.", dismiss: "", "max-devices": "" };
 let armed = null;   // tap once to arm a risky action, tap again to do it (no pop-ups)
 document.getElementById("v-people").addEventListener("click", async (e) => {
   const b = e.target.closest("button[data-act]"); if (!b) return;
@@ -974,9 +982,9 @@ document.getElementById("v-people").addEventListener("click", async (e) => {
   }
   armed = null; b.disabled = true;
   try {
-    const d = await api("admin/people", { action: act, user: b.dataset.user, device: b.dataset.device, alert: b.dataset.alert });
+    const d = await api("admin/people", { action: act === "max-devices" ? "set-max-devices" : act, user: b.dataset.user, device: b.dataset.device, alert: b.dataset.alert, max: b.dataset.max });
     if (act === "reset") tempPass[b.dataset.user] = d.password;
-    say("pp-msg", act === "reset" ? "Password reset. The temporary password is shown above." : DONE[act], true);
+    say("pp-msg", act === "reset" ? "Password reset. The temporary password is shown above." : act === "max-devices" ? `Device limit set to ${d.max}.` : DONE[act], true);
     await loadPeople();
   } catch (err) { say("pp-msg", err.message, false); b.disabled = false; }
 });

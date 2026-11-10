@@ -336,6 +336,18 @@ async function peopleRoutes(path, method, request, env, me, deviceId) {
         await logAction(env, me.name, "Made a new invite code");
         return json({ ok: true, invite });
       }
+      case "set-max-devices": {
+        if (!user) return json({ error: "Person not found." }, 400);
+        const max = Math.max(1, Math.min(10, parseInt(b.max, 10) || 1));
+        if (max === user.max_devices) return json({ ok: true });
+        await env.DB.prepare("UPDATE users SET max_devices = ? WHERE id = ?").bind(max, user.id).run();
+        // lowering the limit below the device count: drop the oldest ones first (never the device asking)
+        const { results: devs } = await env.DB.prepare("SELECT id FROM devices WHERE user_id = ? AND id != ? ORDER BY last_seen").bind(user.id, deviceId).all();
+        const { n: total } = await env.DB.prepare("SELECT COUNT(*) AS n FROM devices WHERE user_id = ?").bind(user.id).first();
+        for (let i = 0, left = total; left > max && i < devs.length; i++, left--) await forgetDevice(env, devs[i].id);
+        await logAction(env, me.name, `Set ${user.name}'s device limit to ${max}`);
+        return json({ ok: true, max });
+      }
     }
     return json({ error: "Unknown action" }, 400);
   }

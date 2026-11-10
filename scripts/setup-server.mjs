@@ -121,7 +121,7 @@ if (account && (!owner || reset)) {
   const pass = await hashPassword(account.password), now = new Date().toISOString();
   const stmts = [];
   if (!owner) {
-    stmts.push(`INSERT INTO users (username, name, pass, role, status, must_change, max_devices, created, approved_at, approved_by) VALUES (${sqlStr(account.username)}, ${sqlStr(account.name)}, ${sqlStr(pass)}, 'owner', 'active', 1, 2, ${sqlStr(now)}, ${sqlStr(now)}, 'setup')`);
+    stmts.push(`INSERT INTO users (username, name, pass, role, status, must_change, max_devices, created, approved_at, approved_by) VALUES (${sqlStr(account.username)}, ${sqlStr(account.name)}, ${sqlStr(pass)}, 'owner', 'active', 1, 3, ${sqlStr(now)}, ${sqlStr(now)}, 'setup')`);
     stmts.push(`INSERT OR IGNORE INTO kv (key, value) VALUES ('invite', ${sqlStr(JSON.stringify(friendlyCode()))})`);
   } else {
     // a fresh start for his account: temporary password, and his devices are forgotten
