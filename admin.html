@@ -151,6 +151,9 @@ ul.people .temp { font-size: 0.92rem; color: var(--open); }
 ul.people .temp code, .invite code { font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--brass-hi); font-size: 1.05rem; user-select: all; }
 .b-danger { color: var(--closed); border-color: rgba(231,118,106,0.45); }
 .badge { display: inline-block; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 8px; border-radius: 99px; background: rgba(217,170,88,0.16); color: var(--brass-hi); }
+.badge.admin { background: rgba(99,211,148,0.14); color: var(--open); }
+.badge.helper { background: rgba(241,233,214,0.08); color: var(--muted); }
+.you { font-size: 0.75rem; font-weight: 500; color: var(--dim); }
 .invite { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 12px 14px; border-radius: 14px; background: rgba(0,0,0,0.25); border: 1px solid var(--line); }
 .tile .count { justify-self: start; }
 
@@ -275,7 +278,7 @@ body.in-view #install { display: none; }
       <label for="si-user">Username<input type="text" id="si-user" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false"></label>
       <label for="si-pass">Password<input type="password" id="si-pass" autocomplete="current-password"></label>
       <button class="b-primary" id="b-signin">Sign in</button>
-      <p class="hint">New helper? <a href="#" id="to-signup">Request access</a> with the invite code from the imam.</p>
+      <p class="hint">New helper? <a href="#" id="to-signup">Request access</a> with the invite code from the imam or an admin.</p>
     </div>
     <div id="si-code" class="stack" hidden>
       <p class="hint">Enter the personal access code you were given. This phone remembers it.</p>
@@ -288,8 +291,8 @@ body.in-view #install { display: none; }
   <!-- request access -->
   <section class="card" id="signup" hidden>
     <h2>Request access</h2>
-    <p class="hint">The imam approves every request. Your account works on <b>this device only</b>, so sign up on the phone you will use.<span id="su-ios"> On iPhone, add this page to the Home Screen first and sign up from the icon: Safari and the icon count as different devices.</span></p>
-    <label for="su-invite">Invite code<input type="text" id="su-invite" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="from the imam, e.g. noor-huda-1234"></label>
+    <p class="hint">The imam or an admin approves every request. Your account works on <b>this device only</b>, so sign up on the phone you will use.<span id="su-ios"> On iPhone, add this page to the Home Screen first and sign up from the icon: Safari and the icon count as different devices.</span></p>
+    <label for="su-invite">Invite code<input type="text" id="su-invite" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="e.g. noor-huda-1234"></label>
     <label for="su-name">Your name<input type="text" id="su-name" maxlength="60" autocomplete="name" placeholder="e.g. Br. Ali"></label>
     <label for="su-user">Username<input type="text" id="su-user" maxlength="30" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="e.g. ali"></label>
     <label for="su-pass">Password (at least 8 characters)<input type="password" id="su-pass" autocomplete="new-password"></label>
@@ -301,8 +304,8 @@ body.in-view #install { display: none; }
 
   <!-- waiting for approval -->
   <section class="card" id="waiting" hidden>
-    <h2>Waiting for the imam</h2>
-    <p>Your request has been sent. When the imam approves it, sign in here with your username and password.</p>
+    <h2>Waiting for approval</h2>
+    <p>Your request has been sent. When the imam or an admin approves it, sign in here with your username and password.</p>
     <button class="b-primary" id="b-waiting">Sign in</button>
   </section>
 
@@ -469,7 +472,7 @@ body.in-view #install { display: none; }
       <p class="hint">Give this code in person to someone you want to help. They use it to request access, and you still approve them here.</p>
       <div class="invite"><code id="pp-invite">—</code><button id="b-invite-copy">Copy</button></div>
       <button id="b-invite-new">Make a new code</button>
-      <p class="hint">A new code stops the old one working. Waiting requests are kept.</p>
+      <p class="hint" id="pp-invite-new-hint">A new code stops the old one working. Waiting requests are kept.</p>
     </section>
     <section class="card">
       <h2>Alerts on this phone</h2>
@@ -517,6 +520,9 @@ const store = {
   set: (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch (e) {} }
 };
 let code = store.get(KEY), token = store.get(SKEY), me = null, accounts = true;
+// roles: the owner (imam) and admins manage people; an admin only manages helpers
+const ROLE_LABEL = { owner: "Owner", admin: "Admin", helper: "Helper" };
+const managesPeople = () => !!me && !me.legacy && (me.role === "owner" || me.role === "admin");
 // this browser's device secret: made once, kept here; the server only stores its hash
 function deviceKey() {
   let k = store.get(DKEY);
@@ -566,9 +572,8 @@ async function enter() {
     return say("signin-msg", e.message, false);
   }
   if (me.mustChange) return askNewPassword(true);
-  $("who").textContent = `Mešita Al-huda · signed in as ${me.name}`;
-  const owner = me.role === "owner";
-  $("t-people").hidden = !owner;
+  $("who").textContent = `Mešita Al-huda · signed in as ${me.name}${me.legacy ? "" : ` (${ROLE_LABEL[me.role] || "Helper"})`}`;
+  $("t-people").hidden = !managesPeople();
   $("b-chpass").hidden = me.legacy;
   show("panel"); route();
   await refresh();
@@ -961,7 +966,7 @@ const VIEWS = ["status", "prayers", "announce", "reminder", "activity", "people"
 let fromHome = false;
 function route() {
   const v = location.hash.slice(1);
-  const on = VIEWS.includes(v) && (v !== "people" || (me && me.role === "owner")) ? v : "";
+  const on = VIEWS.includes(v) && (v !== "people" || managesPeople()) ? v : "";
   $("home").hidden = !!on;
   VIEWS.forEach((k) => ($("v-" + k).hidden = k !== on));
   document.body.classList.toggle("in-view", !!on);
@@ -1067,7 +1072,7 @@ const ago = (iso) => {
 };
 const day = (iso) => iso ? new Intl.DateTimeFormat("en-GB", { timeZone: S.TZ, day: "numeric", month: "short", year: "numeric" }).format(new Date(iso)) : "";
 async function loadPeople() {
-  if (!me || me.role !== "owner") return;
+  if (!managesPeople()) return;
   try { people = await api("admin/people"); } catch (e) { return say("pp-msg", e.message, false); }
   renderPeople();
 }
@@ -1077,11 +1082,11 @@ function renderPeople() {
   const pending = P.people.filter((u) => u.status === "pending");
   const active = P.people.filter((u) => u.status === "active");
   const alerts = P.alerts.filter((a) => a.kind !== "signup");     // requests have their own list
-  const helpers = active.filter((u) => u.role !== "owner").length;
+  const admins = active.filter((u) => u.role === "admin").length, helpers = active.filter((u) => u.role === "helper").length;
   $("ts-people").textContent = [
     pending.length ? `${pending.length} request${pending.length === 1 ? "" : "s"} waiting` : "",
     alerts.length ? `${alerts.length} alert${alerts.length === 1 ? "" : "s"}` : "",
-    `${helpers} helper${helpers === 1 ? "" : "s"} with access`
+    `${admins} admin${admins === 1 ? "" : "s"} · ${helpers} helper${helpers === 1 ? "" : "s"}`
   ].filter(Boolean).join(" · ");
   $("t-people").classList.toggle("closed", pending.length + alerts.length > 0);
 
@@ -1095,25 +1100,36 @@ function renderPeople() {
   $("pp-pending").innerHTML = pending.map((u) => `<li>
       <div class="who"><b>${esc(u.name)}</b><small>${esc(u.username)} · asked ${esc(ago(u.created))}</small></div>
       <div class="meta">Device: ${esc((u.devices[0] || {}).label || "unknown")}</div>
-      <div class="acts"><button class="b-primary" data-act="approve" data-user="${u.id}">Approve</button><button class="b-danger" data-act="reject" data-user="${u.id}" data-name="${esc(u.name)}">Turn down</button></div>
+      <div class="acts">
+        <button class="b-primary" data-act="approve" data-role="helper" data-user="${u.id}">Approve as helper</button>
+        ${P.isOwner ? `<button data-act="approve" data-role="admin" data-user="${u.id}">Approve as admin</button>` : ""}
+        <button class="b-danger" data-act="reject" data-user="${u.id}" data-name="${esc(u.name)}">Turn down</button>
+      </div>
     </li>`).join("") || `<li class="empty">No requests waiting.</li>`;
 
   $("pp-active").innerHTML = active.map((u) => {
     const owner = u.role === "owner";
-    const devs = u.devices.map((d) => `<div class="dev"><span>${esc(d.label)}${d.thisDevice ? " (this one)" : ""}<small>added ${esc(day(d.created))} · last used ${esc(ago(d.lastSeen))}</small></span>${d.thisDevice ? "" : `<button data-act="remove-device" data-device="${esc(d.id)}" data-name="${esc(d.label)}">Remove</button>`}</div>`).join("")
+    // devices: removable by whoever manages this person, and by the person themself (not the one in use)
+    const devs = u.devices.map((d) => `<div class="dev"><span>${esc(d.label)}${d.thisDevice ? " (this one)" : ""}<small>added ${esc(day(d.created))} · last used ${esc(ago(d.lastSeen))}</small></span>${!d.thisDevice && (u.canManage || u.id === P.meId) ? `<button data-act="remove-device" data-device="${esc(d.id)}" data-name="${esc(d.label)}">Remove</button>` : ""}</div>`).join("")
       || `<div class="dev"><span>No device yet<small>${owner ? "" : "The first device they sign in on becomes theirs."}</small></span></div>`;
-    // how many devices this person can sign in on at once; a lower number signs out the oldest extra device
-    const maxDev = `<div class="maxdev"><span>Devices allowed</span><button data-act="max-devices" data-user="${u.id}" data-max="${u.maxDevices - 1}" ${u.maxDevices <= 1 ? "disabled" : ""} aria-label="Fewer devices">−</button><b>${u.maxDevices}</b><button data-act="max-devices" data-user="${u.id}" data-max="${u.maxDevices + 1}" ${u.maxDevices >= 10 ? "disabled" : ""} aria-label="More devices">+</button></div>`;
+    // how many devices this person can sign in on at once (owner only); a lower number signs out the oldest extra device
+    const maxDev = P.isOwner ? `<div class="maxdev"><span>Devices allowed</span><button data-act="max-devices" data-user="${u.id}" data-max="${u.maxDevices - 1}" ${u.maxDevices <= 1 ? "disabled" : ""} aria-label="Fewer devices">−</button><b>${u.maxDevices}</b><button data-act="max-devices" data-user="${u.id}" data-max="${u.maxDevices + 1}" ${u.maxDevices >= 10 ? "disabled" : ""} aria-label="More devices">+</button></div>` : "";
+    // the owner can switch anyone else between admin and helper
+    const roleBtn = P.isOwner && u.canManage
+      ? `<button data-act="set-role" data-user="${u.id}" data-name="${esc(u.name)}" data-role="${u.role === "admin" ? "helper" : "admin"}">${u.role === "admin" ? "Make helper" : "Make admin"}</button>` : "";
+    const acts = u.canManage
+      ? `<div class="acts">${roleBtn}<button data-act="reset" data-user="${u.id}" data-name="${esc(u.name)}">Reset password</button><button class="b-danger" data-act="remove" data-user="${u.id}" data-name="${esc(u.name)}">Remove access</button></div>` : "";
     return `<li>
-      <div class="who"><b>${esc(u.name)} ${owner ? '<span class="badge">Imam</span>' : ""}</b><small>${esc(u.username)}${!owner && u.approvedAt ? ` · approved ${esc(day(u.approvedAt))}${u.approvedBy ? ` by ${esc(u.approvedBy)}` : ""}` : ""}</small></div>
+      <div class="who"><b>${esc(u.name)} <span class="badge ${u.role}">${ROLE_LABEL[u.role] || "Helper"}</span>${u.id === P.meId ? ' <span class="you">you</span>' : ""}</b><small>${esc(u.username)}${!owner && u.approvedAt ? ` · approved ${esc(day(u.approvedAt))}${u.approvedBy ? ` by ${esc(u.approvedBy)}` : ""}` : ""}</small></div>
       ${devs}
       ${maxDev}
       ${tempPass[u.id] ? `<div class="temp">Temporary password: <code>${esc(tempPass[u.id])}</code><br><small>Tell it to ${esc(u.name)} in person. They choose their own when they sign in.</small></div>` : ""}
-      ${owner ? "" : `<div class="acts"><button data-act="reset" data-user="${u.id}" data-name="${esc(u.name)}">Reset password</button><button class="b-danger" data-act="remove" data-user="${u.id}" data-name="${esc(u.name)}">Remove access</button></div>`}
+      ${acts}
     </li>`;
   }).join("");
 
   $("pp-invite").textContent = P.invite || "—";
+  $("b-invite-new").hidden = $("pp-invite-new-hint").hidden = !P.isOwner;     // only the owner replaces the code
   const was = alertsOn;
   pushState(P.alertsOnThisDevice);
   if (P.alertsOnThisDevice && !was) syncPush();
@@ -1122,9 +1138,18 @@ const CONFIRM = {
   reject: (n) => `Turn down the request from ${n}?`,
   remove: (n) => `Remove ${n}? They are signed out at once and can no longer use Imam controls.`,
   reset: (n) => `Reset ${n}'s password? They are signed out and get a temporary password from you.`,
-  "remove-device": (n) => `Remove ${n}? It is signed out, and that person must sign in again on an allowed device.`
+  "remove-device": (n) => `Remove ${n}? It is signed out, and that person must sign in again on an allowed device.`,
+  "set-role": (n, b) => b.dataset.role === "admin"
+    ? `Make ${n} an admin? They can then approve requests and remove helpers or reset their passwords.`
+    : `Make ${n} a helper? They no longer see People.`
 };
-const DONE = { approve: "Approved. They can sign in now.", reject: "Request turned down.", remove: "Access removed.", "remove-device": "Device removed.", "allow-device": "Device allowed. They can sign in on it now.", dismiss: "", "max-devices": "" };
+const DONE = { reject: "Request turned down.", remove: "Access removed.", "remove-device": "Device removed.", "allow-device": "Device allowed. They can sign in on it now.", dismiss: "", "max-devices": "" };
+const doneText = (act, d, b) =>
+  act === "reset" ? "Password reset. The temporary password is shown above."
+  : act === "max-devices" ? `Device limit set to ${d.max}.`
+  : act === "approve" ? `Approved as ${d.role === "admin" ? "admin" : "helper"}. They can sign in now.`
+  : act === "set-role" ? `${b.dataset.name} is now ${d.role === "admin" ? "an admin" : "a helper"}.`
+  : DONE[act];
 let armed = null;   // tap once to arm a risky action, tap again to do it (no pop-ups)
 document.getElementById("v-people").addEventListener("click", async (e) => {
   const b = e.target.closest("button[data-act]"); if (!b) return;
@@ -1132,15 +1157,15 @@ document.getElementById("v-people").addEventListener("click", async (e) => {
   if (CONFIRM[act] && armed !== b) {
     if (armed) { armed.textContent = armed.dataset.label; armed.classList.remove("b-primary"); }
     armed = b; b.dataset.label = b.textContent; b.textContent = "Tap again to confirm";
-    say("pp-msg", CONFIRM[act](b.dataset.name || "this"), false);
+    say("pp-msg", CONFIRM[act](b.dataset.name || "this", b), false);
     setTimeout(() => { if (armed === b) { b.textContent = b.dataset.label; armed = null; } }, 6000);
     return;
   }
   armed = null; b.disabled = true;
   try {
-    const d = await api("admin/people", { action: act === "max-devices" ? "set-max-devices" : act, user: b.dataset.user, device: b.dataset.device, alert: b.dataset.alert, max: b.dataset.max });
+    const d = await api("admin/people", { action: act === "max-devices" ? "set-max-devices" : act, user: b.dataset.user, device: b.dataset.device, alert: b.dataset.alert, max: b.dataset.max, role: b.dataset.role });
     if (act === "reset") tempPass[b.dataset.user] = d.password;
-    say("pp-msg", act === "reset" ? "Password reset. The temporary password is shown above." : act === "max-devices" ? `Device limit set to ${d.max}.` : DONE[act], true);
+    say("pp-msg", doneText(act, d, b), true);
     await loadPeople();
   } catch (err) { say("pp-msg", err.message, false); b.disabled = false; }
 });
@@ -1214,7 +1239,7 @@ async function refresh() {
     const f = new Intl.DateTimeFormat("en-GB", { timeZone: S.TZ, weekday: "short", hour: "2-digit", minute: "2-digit" });
     $("log").innerHTML = s.log.map((l) => `<li><b>${esc(l.who)}</b> · ${esc(l.action)} · ${f.format(new Date(l.at))}</li>`).join("") || "<li>No changes yet.</li>";
   } catch (e) { if (e.status === 401) signedOut(e.message); else if (e.data && e.data.mustChange) askNewPassword(true); }
-  if (me && me.role === "owner") loadPeople();
+  if (managesPeople()) loadPeople();
 }
 
 // ---------------- install as its own app ----------------

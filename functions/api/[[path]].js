@@ -56,9 +56,11 @@ const clip = (s, n) => String(s || "").trim().slice(0, n);
 const isoOrNull = (s) => { if (!s) return null; const d = new Date(s); return isNaN(d) ? null : d.toISOString(); };
 
 // ---------------- accounts ----------------
-// The imam (role "owner") is created by the setup job. Others sign up with the invite code,
-// wait for his approval, and are tied to one device (the imam: two). A "device" is one browser
-// on one phone: it keeps a random secret, and the server only knows its hash.
+// Roles: "owner" (the imam, created by the setup job) controls everything; an "admin" also manages
+// helpers (approves them, removes them, resets their passwords); a "helper" runs the masjid controls.
+// Others sign up with the invite code and wait for approval; the owner chooses admin or helper, an
+// admin can only approve helpers. Each account is tied to its allowed number of devices. A "device"
+// is one browser on one phone: it keeps a random secret, and the server only knows its hash.
 const DAY = 86400000, SESSION_MS = 30 * DAY, HOUR = 3600000;
 const ipOf = (request) => request.headers.get("cf-connecting-ip") || "local";
 const bearer = (request, scheme) => {
@@ -95,13 +97,27 @@ const deviceHash = (key) => sha256hex("device:" + key);
 const ownerExists = async (env) => !!(await env.DB.prepare("SELECT 1 AS x FROM users WHERE role = 'owner' LIMIT 1").first());
 const publicUser = (u) => ({ name: u.name, username: u.username, role: u.role, mustChange: !!u.must_change });
 
-// Something for the imam: kept in the alerts list, and sent to his phone(s) that have account alerts on
-async function alertOwner(env, kind, { userId = null, text, label = null, keyHash = null, title }) {
+// Before there were three roles every non-owner account was saved as "admin"; those were all
+// helpers, so they are renamed once (a flag in kv makes sure later admins are never touched).
+let rolesReady = false;
+async function migrateRoles(env) {
+  if (rolesReady) return;
+  if (!(await kvGet(env.DB, "roles_v2"))) {
+    await env.DB.prepare("UPDATE users SET role = 'helper' WHERE role = 'admin'").run();
+    await kvSet(env.DB, "roles_v2", true);
+  }
+  rolesReady = true;
+}
+
+// Something for the imam (and, when it is about a helper or a new request, the admins too):
+// kept in the alerts list, and sent to their phones that have account alerts on.
+async function alertOwner(env, kind, { userId = null, text, label = null, keyHash = null, title, admins = false }) {
   await env.DB.prepare("INSERT INTO alerts (at, kind, user_id, text, label, key_hash, done) VALUES (?, ?, ?, ?, ?, ?, 0)")
     .bind(new Date().toISOString(), kind, userId, text, label, keyHash).run();
-  const id = `owner-${Date.now()}-${crypto.getRandomValues(new Uint32Array(1))[0].toString(36)}`;
-  await env.DB.prepare("INSERT INTO outbox (id, topic, payload, opts, created, done) VALUES (?, 'owner', ?, ?, ?, 0)")
-    .bind(id, JSON.stringify({ title, body: text, tag: "masjid-account-" + kind, kind: "account", url: "admin.html#people" }),
+  const topic = admins ? "managers" : "owner";
+  const id = `${topic}-${Date.now()}-${crypto.getRandomValues(new Uint32Array(1))[0].toString(36)}`;
+  await env.DB.prepare("INSERT INTO outbox (id, topic, payload, opts, created, done) VALUES (?, ?, ?, ?, ?, 0)")
+    .bind(id, topic, JSON.stringify({ title, body: text, tag: "masjid-account-" + kind, kind: "account", url: "admin.html#people" }),
       JSON.stringify({ ttl: 24 * 3600, urgency: "high" }), new Date().toISOString()).run();
   if (env.PUSHQ) { try { await env.PUSHQ.send({ type: "kick" }); } catch (e) { /* the every-minute job will send it */ } }
 }
@@ -126,7 +142,7 @@ async function useDevice(env, user, key, ua) {
   if (!told) {
     const own = user.role === "owner";
     await alertOwner(env, "device", {
-      userId: user.id, label, keyHash,
+      userId: user.id, label, keyHash, admins: user.role === "helper",
       title: own ? "Your account: sign-in on a new device was blocked" : `${user.name} tried a new device`,
       text: own ? `Someone signed in to your account on ${label}. It was blocked.` : `${user.name} (${user.username}) tried to sign in on ${label}. It was blocked.`
     });
@@ -204,16 +220,18 @@ async function accountRoutes(path, method, request, env) {
     if (!user || !(await verifyPassword(String(b.password || ""), user.pass))) {
       await failed(env, ip);
       if (user && (await failed(env, "u:" + username)) === 10)
-        await alertOwner(env, "locked", { userId: user.id, title: "Too many wrong passwords", text: `${user.name}'s account (${user.username}) had 10 wrong passwords and is locked for an hour.` });
+        await alertOwner(env, "locked", { userId: user.id, admins: user.role === "helper", title: "Too many wrong passwords", text: `${user.name}'s account (${user.username}) had 10 wrong passwords and is locked for an hour.` });
       return json({ error: "Wrong username or password." }, 401);
     }
     await cleared(env, ip); await cleared(env, "u:" + username);
-    if (user.status !== "active") return json({ error: "Your request is waiting for the imam's approval.", pending: true }, 403);
+    if (user.status !== "active") return json({ error: "Your request is waiting for approval from the imam or an admin.", pending: true }, 403);
     const dev = await useDevice(env, user, b.device, request.headers.get("user-agent"));
     if (dev.blocked) return json({
       error: user.role === "owner"
-        ? "Your account is already used on two devices. Remove one of them in People, from a device you are signed in on."
-        : "Your account is tied to another device. The imam has been told, and he can allow this one.",
+        ? `Your account is already used on ${user.max_devices} device${user.max_devices === 1 ? "" : "s"}. Remove one of them in People, from a device you are signed in on.`
+        : user.role === "admin"
+          ? "Your account is already used on all its allowed devices. The imam has been told, and he can allow this one."
+          : "Your account is tied to another device. The imam and the admins have been told, and they can allow this one.",
       device: true
     }, 403);
     return json({ token: await startSession(env, user, dev.id), user: publicUser(user) });
@@ -238,34 +256,42 @@ async function accountRoutes(path, method, request, env) {
     const { n } = await env.DB.prepare("SELECT COUNT(*) AS n FROM users WHERE status = 'pending'").first();
     if (n >= 20) return json({ error: "Too many requests are waiting. Ask the imam to look at them first." }, 429);
     const now = new Date().toISOString();
-    const res = await env.DB.prepare("INSERT INTO users (username, name, pass, role, status, must_change, max_devices, created) VALUES (?, ?, ?, 'admin', 'pending', 0, 1, ?)")
+    // everyone asks as a helper; whoever approves decides (only the owner can make them an admin)
+    const res = await env.DB.prepare("INSERT INTO users (username, name, pass, role, status, must_change, max_devices, created) VALUES (?, ?, ?, 'helper', 'pending', 0, 1, ?)")
       .bind(username, name, await hashPassword(password), now).run();
     const userId = res.meta.last_row_id;
     // the device they signed up on becomes their device
     await env.DB.prepare("INSERT INTO devices (id, user_id, key_hash, label, created, last_seen) VALUES (?, ?, ?, ?, ?, ?)")
       .bind(randomToken(12), userId, await deviceHash(b.device), deviceLabel(request.headers.get("user-agent")), now, now).run();
-    await alertOwner(env, "signup", { userId, title: "New request for admin access", text: `${name} (${username}) asked for access to Imam controls.` });
+    await alertOwner(env, "signup", { userId, admins: true, title: "New request for access", text: `${name} (${username}) asked for access to Imam controls.` });
     return json({ ok: true, pending: true });
   }
   return null;
 }
 
-// Imam only: people, their devices, alerts, the invite code
+// People, their devices, alerts, the invite code — for the owner and the admins.
+// The owner can act on anyone but himself; an admin only on helpers (and on their own devices).
 async function peopleRoutes(path, method, request, env, me, deviceId) {
+  const isOwner = me.role === "owner";
+  const mayManage = (u) => !!u && u.id !== me.id && (isOwner ? u.role !== "owner" : u.role === "helper");
+
   if (path === "/admin/people" && method === "GET") {
     const [users, devices, alerts, invite, push] = await Promise.all([
-      env.DB.prepare("SELECT id, username, name, role, status, created, approved_at, approved_by, max_devices FROM users ORDER BY role = 'owner' DESC, name").all(),
+      env.DB.prepare("SELECT id, username, name, role, status, created, approved_at, approved_by, max_devices FROM users ORDER BY role = 'owner' DESC, role = 'admin' DESC, name").all(),
       env.DB.prepare("SELECT id, user_id, label, created, last_seen FROM devices ORDER BY created").all(),
-      env.DB.prepare("SELECT id, at, kind, user_id, text, label FROM alerts WHERE done = 0 ORDER BY id DESC LIMIT 50").all(),
+      env.DB.prepare("SELECT a.id, a.at, a.kind, a.user_id, a.text, a.label, u.role AS urole FROM alerts a LEFT JOIN users u ON u.id = a.user_id WHERE a.done = 0 ORDER BY a.id DESC LIMIT 50").all(),
       kvGet(env.DB, "invite"),
       env.DB.prepare("SELECT COUNT(*) AS n FROM admin_subs WHERE device_id = ?").bind(deviceId).first()
     ]);
     const byUser = {};
     for (const d of devices.results) (byUser[d.user_id] ||= []).push({ id: d.id, label: d.label, created: d.created, lastSeen: d.last_seen, thisDevice: d.id === deviceId });
     return json({
+      isOwner, meId: me.id,
       people: users.results.map((u) => ({ id: u.id, username: u.username, name: u.name, role: u.role, status: u.status, created: u.created,
-        approvedAt: u.approved_at, approvedBy: u.approved_by, maxDevices: u.max_devices, devices: byUser[u.id] || [] })),
-      alerts: alerts.results, invite, alertsOnThisDevice: push.n > 0
+        approvedAt: u.approved_at, approvedBy: u.approved_by, maxDevices: u.max_devices, devices: byUser[u.id] || [], canManage: mayManage(u) })),
+      // admins only see alerts about helpers and new requests
+      alerts: alerts.results.filter((a) => isOwner || a.urole === "helper").map(({ urole, ...a }) => a),
+      invite, alertsOnThisDevice: push.n > 0
     });
   }
 
@@ -273,28 +299,40 @@ async function peopleRoutes(path, method, request, env, me, deviceId) {
     const b = await request.json().catch(() => ({}));
     const now = new Date().toISOString();
     const user = b.user ? await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(+b.user).first() : null;
-    const notOwner = () => user && user.role !== "owner";
+    const ownerOnly = () => json({ error: "Only the imam can do this." }, 403);
     switch (b.action) {
-      case "approve":
+      case "approve": {
         if (!user || user.status !== "pending") return json({ error: "That request is no longer waiting." }, 400);
+        // the owner chooses admin or helper; an admin can only approve helpers
+        const role = isOwner && b.role === "admin" ? "admin" : "helper";
         await env.DB.batch([
-          env.DB.prepare("UPDATE users SET status = 'active', approved_at = ?, approved_by = ? WHERE id = ?").bind(now, me.name, user.id),
+          env.DB.prepare("UPDATE users SET status = 'active', role = ?, approved_at = ?, approved_by = ? WHERE id = ?").bind(role, now, me.name, user.id),
           env.DB.prepare("UPDATE alerts SET done = 1 WHERE user_id = ? AND kind = 'signup'").bind(user.id)
         ]);
-        await logAction(env, me.name, `Gave access to ${user.name} (${user.username})`);
-        return json({ ok: true });
+        await logAction(env, me.name, `Gave ${user.name} (${user.username}) access as ${role}`);
+        return json({ ok: true, role });
+      }
       case "reject":
         if (!user || user.status !== "pending") return json({ error: "That request is no longer waiting." }, 400);
         await forgetUser(env, user.id);
         await logAction(env, me.name, `Turned down the request from ${user.name} (${user.username})`);
         return json({ ok: true });
+      case "set-role": {
+        if (!isOwner) return ownerOnly();
+        const role = b.role === "admin" ? "admin" : b.role === "helper" ? "helper" : null;
+        if (!role || !mayManage(user) || user.status !== "active") return json({ error: "That role can't be changed." }, 400);
+        if (role === user.role) return json({ ok: true, role });
+        await env.DB.prepare("UPDATE users SET role = ? WHERE id = ?").bind(role, user.id).run();
+        await logAction(env, me.name, `Made ${user.name} ${role === "admin" ? "an admin" : "a helper"}`);
+        return json({ ok: true, role });
+      }
       case "remove":
-        if (!notOwner()) return json({ error: "That person can't be removed." }, 400);
+        if (!mayManage(user)) return json({ error: "You can't remove that person." }, 403);
         await forgetUser(env, user.id);
         await logAction(env, me.name, `Removed ${user.name} (${user.username})`);
         return json({ ok: true });
       case "reset": {
-        if (!notOwner() || user.status !== "active") return json({ error: "That password can't be reset here." }, 400);
+        if (!mayManage(user) || user.status !== "active") return json({ error: "You can't reset that password." }, 403);
         const password = friendlyCode();
         await env.DB.batch([
           env.DB.prepare("UPDATE users SET pass = ?, must_change = 1 WHERE id = ?").bind(await hashPassword(password), user.id),
@@ -305,9 +343,10 @@ async function peopleRoutes(path, method, request, env, me, deviceId) {
         return json({ ok: true, password });
       }
       case "remove-device": {
-        const d = await env.DB.prepare("SELECT d.id, d.label, u.name FROM devices d JOIN users u ON u.id = d.user_id WHERE d.id = ?").bind(String(b.device || "")).first();
+        const d = await env.DB.prepare("SELECT d.id, d.label, d.user_id, u.name, u.role FROM devices d JOIN users u ON u.id = d.user_id WHERE d.id = ?").bind(String(b.device || "")).first();
         if (!d) return json({ error: "That device is already gone." }, 400);
         if (d.id === deviceId) return json({ error: "You are using this device now. Remove it from your other device." }, 400);
+        if (d.user_id !== me.id && !mayManage({ id: d.user_id, role: d.role })) return json({ error: "You can't remove that device." }, 403);
         await forgetDevice(env, d.id);
         await logAction(env, me.name, `Removed ${d.label} from ${d.name}'s account`);
         return json({ ok: true });
@@ -316,6 +355,8 @@ async function peopleRoutes(path, method, request, env, me, deviceId) {
         const a = await env.DB.prepare("SELECT * FROM alerts WHERE id = ? AND kind = 'device' AND done = 0").bind(+b.alert).first();
         const u = a && await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(a.user_id).first();
         if (!u) return json({ error: "That request is no longer open." }, 400);
+        // admins allow devices for helpers; the owner for anyone, himself included
+        if (!isOwner && u.role !== "helper") return ownerOnly();
         // make room: the oldest device goes (for the imam's own account, never the one he is using)
         const { results: devs } = await env.DB.prepare("SELECT id FROM devices WHERE user_id = ? AND id != ? ORDER BY last_seen").bind(u.id, deviceId).all();
         const { n } = await env.DB.prepare("SELECT COUNT(*) AS n FROM devices WHERE user_id = ?").bind(u.id).first();
@@ -327,16 +368,21 @@ async function peopleRoutes(path, method, request, env, me, deviceId) {
         await logAction(env, me.name, `Allowed ${a.label} for ${u.name}`);
         return json({ ok: true });
       }
-      case "dismiss":
+      case "dismiss": {
+        const a = await env.DB.prepare("SELECT u.role FROM alerts a LEFT JOIN users u ON u.id = a.user_id WHERE a.id = ?").bind(+b.alert).first();
+        if (!isOwner && (!a || a.role !== "helper")) return ownerOnly();
         await env.DB.prepare("UPDATE alerts SET done = 1 WHERE id = ?").bind(+b.alert).run();
         return json({ ok: true });
+      }
       case "new-invite": {
+        if (!isOwner) return ownerOnly();
         const invite = friendlyCode();
         await kvSet(env.DB, "invite", invite);
         await logAction(env, me.name, "Made a new invite code");
         return json({ ok: true, invite });
       }
       case "set-max-devices": {
+        if (!isOwner) return ownerOnly();
         if (!user) return json({ error: "Person not found." }, 400);
         const max = Math.max(1, Math.min(10, parseInt(b.max, 10) || 1));
         if (max === user.max_devices) return json({ ok: true });
@@ -377,6 +423,8 @@ export async function onRequest({ request, env, params }) {
   if (!env.DB) return json({ error: "The server is not set up yet.", setup: false }, 503);
 
   try {
+    if (path.startsWith("/admin/") || path.startsWith("/auth/")) await migrateRoles(env);
+
     // ---------------- public ----------------
     if (path === "/state" && method === "GET") {
       const [override, announcement, reminder, jamaah] = await Promise.all([
@@ -430,7 +478,7 @@ export async function onRequest({ request, env, params }) {
       const who = auth.name, me = auth.user;
 
       if (path === "/admin/me" && method === "GET")
-        return json(me ? { ...publicUser(me), legacy: false } : { name: who, role: "admin", legacy: true });
+        return json(me ? { ...publicUser(me), legacy: false } : { name: who, role: "helper", legacy: true });
 
       if (path === "/admin/logout" && method === "POST") {
         if (auth.tokenHash) await env.DB.prepare("DELETE FROM sessions WHERE token_hash = ?").bind(auth.tokenHash).run();
@@ -457,7 +505,7 @@ export async function onRequest({ request, env, params }) {
       if (me && me.must_change) return json({ error: "Choose a new password first.", mustChange: true }, 403);
 
       if (path === "/admin/people" || path === "/admin/push") {
-        if (!me || me.role !== "owner") return json({ error: "Only the imam can do this." }, 403);
+        if (!me || (me.role !== "owner" && me.role !== "admin")) return json({ error: "Only the imam or an admin can do this." }, 403);
         const res = await peopleRoutes(path, method, request, env, me, auth.deviceId);
         if (res) return res;
       }

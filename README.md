@@ -84,15 +84,25 @@ the site to the database. Pages then redeploys by itself (about a minute).
 The job is safe to run again at any time; it never deletes data and never changes the
 notification keys once made (changing them would turn everyone's alerts off).
 
-## Accounts: the imam and his helpers
+## Accounts: owner, admins and helpers
 
 ```
-Developer ──(IMAM_ACCOUNT secret + Set up server)──► the imam's account
+Developer ──(IMAM_ACCOUNT secret + Set up server)──► the imam's account (the owner)
 Imam: signs in → chooses his own password → People → shares the invite code in person
-Helper: /admin.html → Request access (invite code, name, username, password) → waits
-Imam: 🔔 "New request for admin access" → People → Approve / Turn down
-Helper: signs in → open/close, reminder, announcements
+Someone new: /admin.html → Request access (invite code, name, username, password) → waits
+Imam or an admin: 🔔 "New request for access" → People → Approve as helper / (imam only) as admin
+Everyone: signs in with their own username and password → open/close, reminder, announcements
 ```
+
+| Role | Masjid controls | People |
+|---|---|---|
+| **Owner** (the imam, one) | yes | everything: approve as helper or admin, **Make admin / Make helper**, remove anyone, reset passwords, devices allowed, new invite code |
+| **Admin** | yes | helpers only: approve requests (always as helper), turn them down, remove helpers, reset their passwords, allow or remove their devices; sees the invite code |
+| **Helper** | yes | no |
+
+Nobody shares the imam's password: each admin has their own account. An admin can't touch the imam
+or other admins, and can't change roles, device limits or the invite code. Accounts made before roles
+existed become helpers automatically the first time the new server code runs.
 
 - **Devices.** Each account works on a limited number of devices at once — a new setup gives a helper
   1 and the imam 3. Signing in on one more than that is blocked, and the imam gets a notification; in
@@ -105,8 +115,10 @@ Helper: signs in → open/close, reminder, announcements
   **Remove access**, **Reset password** (shows a temporary password to give in person) and **Remove**
   for a device. Removing signs the person out at once.
 - **Invite code.** Shown in People; **Make a new code** stops the old one working.
-- **Alerts on this phone** (in People) sends the imam a notification for new requests, blocked devices,
-  and accounts locked after 10 wrong passwords (locked for an hour).
+- **Alerts on this phone** (in People) sends a notification for new requests, blocked devices,
+  and accounts locked after 10 wrong passwords (locked for an hour). Anything about a helper or a new
+  request goes to the imam and the admins; anything about the imam's or an admin's own account goes
+  to the imam only.
 - **Imam locked out** (forgot his password, or lost both devices): put a new temporary password in the
   `IMAM_ACCOUNT` secret, then **Actions → Set up server → Run workflow** with *Reset the imam's
   password* ticked. His devices are cleared; he signs in again and chooses a new password.

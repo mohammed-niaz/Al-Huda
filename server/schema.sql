@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS users (
   username    TEXT NOT NULL UNIQUE,            -- lower-case
   name        TEXT NOT NULL,
   pass        TEXT NOT NULL,                   -- pbkdf2$… (lib/password.js)
-  role        TEXT NOT NULL DEFAULT 'admin',   -- 'owner' (the imam) or 'admin'
+  role        TEXT NOT NULL DEFAULT 'helper',  -- 'owner' (the imam), 'admin' (also manages helpers) or 'helper'
   status      TEXT NOT NULL DEFAULT 'pending', -- 'pending' or 'active'
   must_change INTEGER NOT NULL DEFAULT 0,      -- 1 = choose a new password at next sign-in
   max_devices INTEGER NOT NULL DEFAULT 1,
