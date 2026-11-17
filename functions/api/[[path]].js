@@ -477,11 +477,19 @@ export async function onRequest({ request, env, params }) {
         if (mode === "hours") {
           const open = isoOrNull(b.open), close = isoOrNull(b.close), until = isoOrNull(b.until);
           if (!close || !until || (open && open >= close)) return json({ error: "Pick a closing time after the opening time." }, 400);
-          const override = { mode, open, close, until, message: "", by: who, at: new Date().toISOString() };
+          const override = { mode, open, close, until, message: clip(b.message, 140), by: who, at: new Date().toISOString() };
           await kvSet(env.DB, KEYS.override, override);
           const label = [b.openLabel && `opening ${clip(b.openLabel, 20)}`, `closing ${clip(b.closeLabel, 20) || close}`].filter(Boolean).join(" · ");
-          await logAction(env, who, `Set the ${label}`);
-          return json({ ok: true, override, notified: 0 });
+          await logAction(env, who, b.closeNow ? `Closed the masjid until ${clip(b.openLabel, 20)}` : `Set the ${label}`);
+          // only "close now, open again at …" (swipe to close → custom time) is announced; editing the times is not
+          let notified = 0;
+          if (b.closeNow && b.notify) {
+            notified = await broadcast(env, "status", {
+              title: clip(b.title, 80) || "The masjid is now closed",
+              body: override.message || clip(b.body, 180), tag: "masjid-status", kind: "status", url: "./"
+            }, { ttl: 1800 });
+          }
+          return json({ ok: true, override, notified });
         }
         const message = clip(b.message, 140);
         let notified = 0;

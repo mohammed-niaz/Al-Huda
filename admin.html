@@ -58,6 +58,41 @@ a { color: var(--brass-hi); }
 .opening button, .opening .hint, .opening .msg { grid-column: 1 / -1; }
 .opening.only-close #close-at-wrap { grid-column: 1 / -1; }
 .opening .msg:empty { display: none; }
+
+/* swipe to open / close: drag the knob to the far end */
+.swipe { position: relative; height: 68px; border-radius: 999px; overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: pan-y; }
+.swipe.to-open { background: rgba(99,211,148,0.22); border: 1px solid rgba(99,211,148,0.45); }
+.swipe.to-close { background: rgba(231,118,106,0.2); border: 1px solid rgba(231,118,106,0.45); }
+.swipe-fill { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 999px; }
+.swipe.to-open .swipe-fill { background: rgba(99,211,148,0.35); }
+.swipe.to-close .swipe-fill { background: rgba(231,118,106,0.35); }
+.swipe-label { position: absolute; inset: 0; display: grid; place-items: center; padding-left: 56px; font-weight: 700; font-size: 1.12rem; letter-spacing: 0.02em; pointer-events: none; }
+.swipe.to-open .swipe-label { color: var(--open); }
+.swipe.to-close .swipe-label { color: var(--closed); }
+.swipe-knob {
+  position: absolute; top: 5px; left: 5px; width: 56px; height: 56px; padding: 0; border-radius: 50%; border: none;
+  display: grid; place-items: center; background: var(--ground); cursor: grab; touch-action: none; box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+}
+.swipe-knob:active { cursor: grabbing; }
+.swipe-knob svg { width: 28px; height: 28px; }
+.swipe.to-open .swipe-knob { color: var(--open); }
+.swipe.to-close .swipe-knob { color: var(--closed); }
+.swipe.back .swipe-knob, .swipe.back .swipe-fill { transition: transform .25s ease, width .25s ease; }
+.swipe.busy { opacity: 0.6; pointer-events: none; }
+
+/* "when are you opening again?" */
+.ask { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px; background: rgba(4,14,15,0.72); }
+.ask-card { width: min(380px, 100%); display: grid; gap: 12px; padding: 22px 18px 16px; border-radius: 20px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 26px 70px -18px rgba(0,0,0,0.85); }
+.ask-card h3 { margin: 0 0 4px; font-family: var(--font-display); font-weight: 600; font-size: 1.2rem; text-align: center; }
+.ask-opt { display: grid; gap: 2px; text-align: left; padding: 14px 16px; }
+.ask-opt b { font-size: 1.02rem; }
+.ask-opt small { color: var(--muted); font-weight: 500; font-size: 0.85rem; }
+.ask-opt[aria-pressed="true"] { border-color: var(--brass); background: rgba(217,170,88,0.12); }
+.ask-custom { display: grid; gap: 10px; }
+.ask-custom input { font-size: 1.15rem; font-weight: 700; color: var(--brass-hi); }
+.ask-custom .b-close { padding: 14px 10px; }
+.ask-cancel { background: none; border: none; color: var(--muted); font-weight: 600; padding: 8px; }
+.ask .msg:empty { display: none; }
 button {
   font: inherit; cursor: pointer; border-radius: 14px; padding: 12px 16px; font-weight: 700;
   border: 1px solid var(--line); background: rgba(241,233,214,0.05); color: var(--ivory);
@@ -322,20 +357,39 @@ body.in-view #install { display: none; }
         <label for="open-at" id="open-at-wrap">Opening time<input type="time" id="open-at"></label>
         <label for="close-at" id="close-at-wrap">Closing time<input type="time" id="close-at"></label>
         <button class="b-primary" id="b-times">Set</button>
+        <button id="b-auto">Back to the normal timetable</button>
         <p class="hint" id="times-hint"></p>
         <div class="msg" id="times-msg"></div>
-      </div>
-      <div class="big">
-        <button class="b-open" id="b-open">OPEN</button>
-        <button class="b-close" id="b-close">CLOSE</button>
       </div>
       <label for="message">Note for everyone (optional)<input type="text" id="message" maxlength="140" placeholder="e.g. Back after Asr"></label>
       <label class="check"><input type="checkbox" id="notify" checked> Send a notification to everyone</label>
       <div class="msg" id="status-msg"></div>
-      <button id="b-auto">Back to the normal timetable</button>
+      <!-- swipe to open / swipe to close: one control that flips with the status -->
+      <div class="swipe to-close" id="swipe">
+        <div class="swipe-fill" id="swipe-fill"></div>
+        <span class="swipe-label" id="swipe-label">Swipe to close</span>
+        <button type="button" class="swipe-knob" id="swipe-knob" aria-label="Swipe to close the masjid">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+        </button>
+      </div>
       <p class="hint" id="timetable"></p>
     </section>
     </section>
+
+    <!-- after swipe to close: when does it open again? -->
+    <div class="ask" id="ask-open" role="dialog" aria-modal="true" aria-labelledby="ask-title" hidden>
+      <div class="ask-card">
+        <h3 id="ask-title">When are you opening again?</h3>
+        <button type="button" class="ask-opt" id="ask-default"><b>Set default</b><small id="ask-default-time">Opens at the usual time</small></button>
+        <button type="button" class="ask-opt" id="ask-custom"><b>Custom timing</b><small>Choose the opening time yourself</small></button>
+        <div class="ask-custom" id="ask-custom-box" hidden>
+          <label for="ask-time">Opens again at<input type="time" id="ask-time"></label>
+          <button type="button" class="b-close" id="ask-custom-go">Close until this time</button>
+        </div>
+        <div class="msg" id="ask-msg"></div>
+        <button type="button" class="ask-cancel" id="ask-cancel">Cancel</button>
+      </div>
+    </div>
 
     <!-- prayers held at the masjid + their iqamah -->
     <section class="view" id="v-prayers" hidden>
@@ -630,6 +684,7 @@ function renderStatus() {
   $("t-status").className = "tile " + (st.open ? "open" : "closed");
   $("ts-status").textContent = (st.open ? "Open" : "Closed") + (st.change ? (st.open ? ` · until ${when(st.change)}` : ` · opens ${when(st.change)}`) : "");
   $("b-auto").hidden = !st.manual;
+  setSwipe(st.open ? "close" : "open");
 
   // times: open → closing time only; closed → opening + closing time. Prefilled with the current ones.
   if (st.open !== lastOpen) { timesDirty = false; lastOpen = st.open; }
@@ -654,8 +709,7 @@ function renderStatus() {
 }
 // OPEN / CLOSE now (with optional note + notification), or back to the timetable
 async function setStatus(mode) {
-  const btns = ["b-open", "b-close", "b-auto"].map($);
-  btns.forEach((b) => (b.disabled = true));
+  $("b-auto").disabled = true; $("swipe").classList.add("busy");
   try {
     const n = new Date();
     let body;
@@ -681,7 +735,7 @@ async function setStatus(mode) {
     $("message").value = "";
     renderStatus(); refresh();
   } catch (e) { say("status-msg", e.message, false); }
-  btns.forEach((b) => (b.disabled = false));
+  $("b-auto").disabled = false; $("swipe").classList.remove("busy"); resetSwipe();
 }
 // ---- opening / closing time: no notification ----
 ["open-at", "close-at"].forEach((id) => $(id).addEventListener("input", () => (timesDirty = true)));
@@ -710,9 +764,111 @@ $("b-times").addEventListener("click", async () => {
   $("b-times").disabled = false;
 });
 
-$("b-open").addEventListener("click", () => setStatus("open"));
-$("b-close").addEventListener("click", () => setStatus("closed"));
 $("b-auto").addEventListener("click", () => setStatus("auto"));
+
+// ---- swipe to open / close ----
+// Drag the knob to the far end. Opening happens at once; closing first asks when it opens again.
+let swipeMode = "close";
+function setSwipe(mode) {
+  if (mode === swipeMode && $("swipe").classList.contains("to-" + mode)) return;
+  swipeMode = mode;
+  $("swipe").className = "swipe to-" + mode;
+  const text = mode === "open" ? "Swipe to open" : "Swipe to close";
+  $("swipe-label").textContent = text;
+  $("swipe-knob").setAttribute("aria-label", `${text} the masjid`);
+  resetSwipe();
+}
+function swipeTo(x) {
+  $("swipe-knob").style.transform = `translateX(${x}px)`;
+  $("swipe-fill").style.width = x ? `${x + 60}px` : "0";
+  $("swipe-label").style.opacity = String(Math.max(0, 1 - x / swipeMax()));
+}
+const swipeMax = () => Math.max(1, $("swipe").clientWidth - $("swipe-knob").offsetWidth - 10);
+function resetSwipe() {
+  $("swipe").classList.add("back");
+  swipeTo(0);
+  setTimeout(() => $("swipe").classList.remove("back"), 260);
+}
+function swiped() {
+  swipeTo(swipeMax());
+  if (swipeMode === "open") setStatus("open");
+  else openAsk();
+}
+{
+  let startX = null, x = 0;
+  const knob = $("swipe-knob");
+  knob.addEventListener("pointerdown", (e) => {
+    if ($("swipe").classList.contains("busy")) return;
+    startX = e.clientX - x; $("swipe").classList.remove("back");
+    try { knob.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+  knob.addEventListener("pointermove", (e) => {
+    if (startX === null) return;
+    x = Math.max(0, Math.min(swipeMax(), e.clientX - startX));
+    swipeTo(x);
+  });
+  const end = () => {
+    if (startX === null) return;
+    startX = null;
+    if (x >= swipeMax() * 0.9) swiped(); else resetSwipe();
+    x = 0;
+  };
+  knob.addEventListener("pointerup", end);
+  knob.addEventListener("pointercancel", end);
+  // keyboard: Enter / Space does the same as a full swipe
+  knob.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); swiped(); } });
+  knob.addEventListener("click", (e) => e.preventDefault());
+}
+
+// ---- "when are you opening again?" (after swipe to close) ----
+function openAsk() {
+  const next = nextOpening(new Date());
+  $("ask-default-time").textContent = next ? `Opens at the usual time · ${when(next)}` : "Opens at the usual time";
+  $("ask-custom").setAttribute("aria-pressed", "false");
+  $("ask-custom-box").hidden = true;
+  $("ask-time").value = next ? S.hm(next) : "";
+  $("ask-msg").textContent = "";
+  $("ask-open").hidden = false;
+  $("ask-default").focus();
+}
+function closeAsk() { $("ask-open").hidden = true; resetSwipe(); }
+$("ask-cancel").addEventListener("click", closeAsk);
+$("ask-open").addEventListener("click", (e) => { if (e.target === $("ask-open")) closeAsk(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("ask-open").hidden) closeAsk(); });
+// default: closed until the timetable's next opening
+$("ask-default").addEventListener("click", async () => {
+  $("ask-open").hidden = true;
+  await setStatus("closed");
+});
+$("ask-custom").addEventListener("click", () => {
+  $("ask-custom").setAttribute("aria-pressed", "true");
+  $("ask-custom-box").hidden = false;
+  $("ask-time").focus();
+});
+// custom: closed now, open from the chosen time until the usual closing time that day
+$("ask-custom-go").addEventListener("click", async () => {
+  const v = $("ask-time").value;
+  if (!v) return say("ask-msg", "Pick the opening time.", false);
+  const n = new Date(), open = nextAt(v, n);
+  const w = S.openWindows(open).find((x) => x.to > open);
+  const close = w ? w.to : S.addMin(open, 6 * 60);
+  const until = nextOpening(close) || S.addMin(close, 12 * 60);
+  const msg = $("message").value.trim(), notify = $("notify").checked;
+  $("ask-custom-go").disabled = true; $("swipe").classList.add("busy");
+  try {
+    const d = await api("admin/status", {
+      mode: "hours", closeNow: true, open: open.toISOString(), close: close.toISOString(), until: until.toISOString(),
+      openLabel: when(open), closeLabel: when(close), message: msg, notify,
+      title: "The masjid is now closed", body: msg || `It opens again at ${when(open)}.`
+    });
+    server.override = d.override || null; timesDirty = false;
+    $("ask-open").hidden = true;
+    say("status-msg", `Marked as closed until ${when(open)}.${notify ? ` Notification on its way to ${d.notified} phone${d.notified === 1 ? "" : "s"}.` : ""}`, true);
+    $("message").value = "";
+    renderStatus(); refresh();
+  } catch (e) { say("ask-msg", e.message, false); }
+  $("ask-custom-go").disabled = false; $("swipe").classList.remove("busy"); resetSwipe();
+});
 
 // ---------------- prayers at the masjid ----------------
 // S has no imam settings, so its iqamah times are the usual ones from config.js
