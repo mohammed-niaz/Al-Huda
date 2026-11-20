@@ -891,8 +891,10 @@ function jmTimes() {
     $("jm-adhan-" + k).textContent = `adhan today ${S.hm(p.adhan)}`;
     $("jm-usual-" + k).textContent = `usual ${S.hm(p.iqamah)}`;
   });
-  const j = C.jumuah || {};
-  $("jm-friday").textContent = j.enabled ? `On Fridays Jumu'ah (khutbah ${j.khutbah}, iqamah ${j.iqamah}) is always shown in place of Dhuhr.` : "";
+  // the coming Friday's Jumu'ah (winter or summer time is picked by itself)
+  let fri = S.ymdOf(new Date()); while (S.weekday(fri) !== 5) fri = S.addDays(fri, 1);
+  const jt = S.jumuahTimes(fri);
+  $("jm-friday").textContent = (C.jumuah || {}).enabled ? `On Fridays Jumu'ah (khutbah ${jt.khutbah}, iqamah ${jt.iqamah}) is always shown in place of Dhuhr.` : "";
 }
 function jmRowState() {
   JM.forEach(([k]) => {

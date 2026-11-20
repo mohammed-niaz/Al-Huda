@@ -221,6 +221,8 @@ td.p .ar { font-family: var(--font-quran); color: var(--dim); font-weight: 400; 
 td.t { font-size: 1.12rem; }
 td.t.iq { color: var(--brass-hi); font-weight: 600; }
 tr.sunrise td { color: var(--dim); font-size: 0.9rem; padding-block: 8px; }
+tr.jumuah td { border-top: 1px dashed rgba(217,170,88,0.35); }
+tr.jumuah td.p small { display: block; margin-top: 2px; color: var(--dim); font-size: 0.78rem; font-weight: 500; }
 tr.sunrise td.t { font-size: 0.95rem; }
 tr.done td { opacity: 0.45; }
 /* next prayer: a plain timetable band across the row with a solid marker down the left edge */
@@ -738,6 +740,15 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
     return new Date(t);
   }
   const ymdOf = (d) => { const p = parts(d); return `${p.year}-${p.month}-${p.day}`; };
+  // Jumu'ah has a winter and a summer time; summer = the masjid's clocks are an hour ahead of January/July's lower offset
+  function summerTime(ymd) {
+    const y = +ymd.slice(0, 4), at = (m, d) => offsetMs(new Date(Date.UTC(y, m, d, 12)));
+    return at(+ymd.slice(5, 7) - 1, +ymd.slice(8, 10)) > Math.min(at(0, 1), at(6, 1));
+  }
+  function jumuahTimes(ymd) {
+    const j = C.jumuah || {};
+    return (summerTime(ymd) ? j.summer : j.winter) || j;     // older configs had one khutbah/iqamah for the whole year
+  }
   const addDays = (ymd, n) => { const d = new Date(ymd + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
   const weekday = (ymd) => new Date(ymd + "T12:00:00Z").getUTCDay();
   const hm = (d) => d ? new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d) : "—";
@@ -784,8 +795,9 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
       const held = J[p.key] || {};
       if (p.key === "dhuhr" && friday) {
         name = "Jumu'ah"; ar = "الجمعة";
-        adhanT = zoned(ymd, C.jumuah.khutbah);
-        iq = zoned(ymd, C.jumuah.iqamah);
+        const jt = jumuahTimes(ymd);
+        adhanT = zoned(ymd, jt.khutbah);
+        iq = zoned(ymd, jt.iqamah);
         atMasjid = true;
       } else {
         const rule = held.on && held.iqamah ? { time: held.iqamah } : (C.iqamah && C.iqamah[p.key]) || { after: 10 };
@@ -1033,6 +1045,11 @@ body.screen .alert-panel, body.screen .alert-banner { display: none; }
         const tag = isLive ? `<span class="tag">${st.live === p ? "Iqamah soon" : "Now"}</span>` : isNext ? `<span class="tag">Next</span>` : "";
         rows.push(`<tr class="${cls}">${label(p, tag)}<td class="t iq big">${hm(p.adhan)}</td></tr>`);
       });
+      // Jumu'ah is always listed: on Friday it is the Dhuhr row above, other days it shows the coming Friday
+      if (!d.friday && C.jumuah && C.jumuah.enabled) {
+        let fri = d.ymd; while (weekday(fri) !== 5) fri = addDays(fri, 1);
+        rows.push(`<tr class="jumuah"><td class="p">Jumu'ah<span class="ar">الجمعة</span><small>Friday · iqamah ${jumuahTimes(fri).iqamah}</small></td><td class="t iq big">${jumuahTimes(fri).khutbah}</td></tr>`);
+      }
       $("t-disc").textContent = "";
     }
     $("tbody").innerHTML = rows.join("");

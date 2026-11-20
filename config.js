@@ -35,11 +35,12 @@ window.MASJID_CONFIG = {
     isha:    { after: 10 }
   },
 
-  // Friday: Dhuhr is replaced by Jumu'ah
+  // Friday: Dhuhr is replaced by Jumu'ah. The app picks winter or summer by itself from the
+  // clocks in Slovakia: summer time starts the last Sunday of March, winter time the last Sunday of October.
   jumuah: {
     enabled: true,
-    khutbah: "12:30",                  // khutbah start (shown + used as "adhan")
-    iqamah:  "12:45"
+    winter: { khutbah: "12:30", iqamah: "12:45" },   // khutbah start (shown + used as "adhan")
+    summer: { khutbah: "13:30", iqamah: "13:45" }
   },
 
   // How long the "jama'ah in progress" state shows after iqamah
